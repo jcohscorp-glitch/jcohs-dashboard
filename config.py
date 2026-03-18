@@ -84,5 +84,24 @@ NAVER_AD_ACCOUNTS = [
 # ── Gemini AI (secrets.toml에서 관리) ────────────────────────
 GEMINI_API_KEY = _secret("GEMINI_API_KEY")
 
+# ── 네이버 데이터랩 (developers.naver.com) ─────────────────────
+def get_datalab_creds():
+    """데이터랩 API 인증정보"""
+    try:
+        import streamlit as st
+        creds = st.secrets["datalab_dashboard"]
+        return creds["client_id"], creds["client_secret"]
+    except Exception:
+        return None, None
+
+# ── 네이버 커머스 API 스토어 목록 ──────────────────────────────
+COMMERCE_STORE_KEYS = [
+    "commerce_hanbashop",
+    "commerce_joycoss",
+    "commerce_dreamprice",
+    "commerce_raycop",
+    "commerce_mogone",
+]
+
 # ── 캐시 TTL (초) ────────────────────────────────────────────
 CACHE_TTL = 300  # 5분
