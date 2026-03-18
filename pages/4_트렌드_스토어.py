@@ -9,12 +9,17 @@ from datetime import datetime, timedelta
 
 import naver_datalab as ndl
 import naver_commerce as ncom
+import coupang_commerce as cpcom
 
 st.set_page_config(page_title="트렌드 & 스토어", page_icon="📊", layout="wide")
 st.title("📊 트렌드 & 스토어 API")
 
 # ─── 메인 탭 ──────────────────────────────────────────────────
-tab_trend, tab_store = st.tabs(["🔍 네이버 데이터랩", "🏪 스마트스토어"])
+tabs = ["🔍 네이버 데이터랩", "🏪 스마트스토어"]
+if cpcom.is_configured():
+    tabs.append("🟠 쿠팡 스토어")
+tab_trend, tab_store, *extra_tabs = st.tabs(tabs)
+tab_coupang = extra_tabs[0] if extra_tabs else None
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -385,3 +390,155 @@ with tab_store:
                 )
                 fig.update_layout(height=400)
                 st.plotly_chart(fig, use_container_width=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  TAB 3: 쿠팡 스토어 (Open API)
+# ═══════════════════════════════════════════════════════════════
+if tab_coupang is not None:
+    with tab_coupang:
+        st.subheader("🟠 쿠팡 스토어 (Open API)")
+
+        cp_sub = st.tabs(["📦 주문 현황", "💰 매출 내역", "🏷️ 상품 현황"])
+
+        # ── 쿠팡 주문 현황 ────────────────────────────────────────
+        with cp_sub[0]:
+            st.markdown("#### 쿠팡 주문 조회")
+
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col1:
+                cp_order_start = st.date_input(
+                    "시작일", datetime.now() - timedelta(days=7), key="cp_order_start",
+                )
+            with col2:
+                cp_order_end = st.date_input("종료일", datetime.now(), key="cp_order_end")
+            with col3:
+                cp_status = st.selectbox(
+                    "주문 상태",
+                    ["ACCEPT", "INSTRUCT", "DEPARTURE", "DELIVERING", "FINAL_DELIVERY"],
+                    index=0,
+                    key="cp_status",
+                )
+
+            if st.button("📦 쿠팡 주문 조회", key="btn_cp_orders"):
+                with st.spinner("쿠팡 주문 조회 중..."):
+                    df_cp = cpcom.get_orders(
+                        start_date=cp_order_start.strftime("%Y-%m-%d"),
+                        end_date=cp_order_end.strftime("%Y-%m-%d"),
+                        status=cp_status,
+                    )
+
+                if df_cp.empty:
+                    st.info("해당 기간/상태의 주문이 없습니다.")
+                else:
+                    st.success(f"총 {len(df_cp):,}건 주문 조회 완료")
+
+                    # KPI
+                    k1, k2, k3 = st.columns(3)
+                    k1.metric("총 주문건수", f"{len(df_cp):,}건")
+                    k2.metric("총 매출", f"{df_cp['상품금액'].sum():,.0f}원")
+                    k3.metric("평균 객단가", f"{df_cp['상품금액'].mean():,.0f}원")
+
+                    # 일자별 추이
+                    if "주문일시" in df_cp.columns and df_cp["주문일시"].notna().any():
+                        daily = df_cp.groupby(df_cp["주문일시"].dt.date).agg(
+                            주문건수=("주문번호", "count"),
+                            매출=("상품금액", "sum"),
+                        ).reset_index()
+                        daily.columns = ["날짜", "주문건수", "매출"]
+
+                        fig = px.bar(
+                            daily, x="날짜", y="매출", text="주문건수",
+                            title="일자별 쿠팡 매출",
+                            color_discrete_sequence=["#F47521"],
+                        )
+                        fig.update_traces(texttemplate="%{text}건", textposition="outside")
+                        fig.update_layout(height=400)
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    # 상세 테이블
+                    with st.expander("주문 상세 데이터"):
+                        st.dataframe(df_cp, use_container_width=True)
+
+        # ── 쿠팡 매출 내역 ────────────────────────────────────────
+        with cp_sub[1]:
+            st.markdown("#### 쿠팡 매출 내역 (구매확정 기준)")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                cp_sales_start = st.date_input(
+                    "시작일", datetime.now() - timedelta(days=30), key="cp_sales_start",
+                )
+            with col2:
+                cp_sales_end = st.date_input("종료일", datetime.now(), key="cp_sales_end")
+
+            if st.button("💰 매출 조회", key="btn_cp_sales"):
+                with st.spinner("쿠팡 매출 내역 조회 중..."):
+                    df_sales = cpcom.get_sales(
+                        start_date=cp_sales_start.strftime("%Y-%m-%d"),
+                        end_date=cp_sales_end.strftime("%Y-%m-%d"),
+                    )
+
+                if df_sales.empty:
+                    st.info("해당 기간의 매출 내역이 없습니다.")
+                else:
+                    st.success(f"총 {len(df_sales):,}건 매출 조회 완료")
+
+                    # KPI
+                    k1, k2, k3, k4 = st.columns(4)
+                    k1.metric("총 판매금액", f"{df_sales['판매금액'].sum():,.0f}원")
+                    k2.metric("총 수수료", f"{df_sales['수수료'].sum():,.0f}원")
+                    k3.metric("총 정산금액", f"{df_sales['정산금액'].sum():,.0f}원")
+                    k4.metric("판매건수", f"{len(df_sales):,}건")
+
+                    # 일자별 매출
+                    if "매출일" in df_sales.columns and df_sales["매출일"].notna().any():
+                        daily_sales = df_sales.groupby(df_sales["매출일"].dt.date).agg(
+                            판매금액=("판매금액", "sum"),
+                            정산금액=("정산금액", "sum"),
+                        ).reset_index()
+                        daily_sales.columns = ["날짜", "판매금액", "정산금액"]
+
+                        fig = go.Figure()
+                        fig.add_trace(go.Bar(
+                            x=daily_sales["날짜"], y=daily_sales["판매금액"],
+                            name="판매금액", marker_color="#F47521",
+                        ))
+                        fig.add_trace(go.Scatter(
+                            x=daily_sales["날짜"], y=daily_sales["정산금액"],
+                            name="정산금액", mode="lines+markers",
+                            line=dict(color="#1A73E8", width=2),
+                        ))
+                        fig.update_layout(title="일자별 매출/정산 추이", height=400)
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    # 상세
+                    with st.expander("매출 상세 데이터"):
+                        st.dataframe(df_sales, use_container_width=True)
+
+        # ── 쿠팡 상품 현황 ────────────────────────────────────────
+        with cp_sub[2]:
+            st.markdown("#### 쿠팡 상품 목록")
+
+            if st.button("🏷️ 상품 조회", key="btn_cp_products"):
+                with st.spinner("쿠팡 상품 조회 중..."):
+                    df_prod = cpcom.get_products()
+
+                if df_prod.empty:
+                    st.info("상품 데이터가 없습니다.")
+                else:
+                    st.success(f"총 {len(df_prod):,}개 상품 조회 완료")
+
+                    # 상태별 분포
+                    if "상태" in df_prod.columns:
+                        status_counts = df_prod["상태"].value_counts().reset_index()
+                        status_counts.columns = ["상태", "수량"]
+                        fig = px.pie(
+                            status_counts, names="상태", values="수량",
+                            title="상품 상태 분포",
+                            color_discrete_sequence=px.colors.sequential.Oranges_r,
+                        )
+                        fig.update_layout(height=350)
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    st.dataframe(df_prod, use_container_width=True)

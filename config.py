@@ -81,6 +81,15 @@ NAVER_AD_ACCOUNTS = [
     },
 ]
 
+# ── 쿠팡 WING Open API (secrets.toml에서 관리) ───────────────
+# [coupang_wing]
+# vendor_id = "A00XXXXX"
+# access_key = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# secret_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+COUPANG_VENDOR_ID = _secret("COUPANG_VENDOR_ID")
+COUPANG_ACCESS_KEY = _secret("COUPANG_ACCESS_KEY")
+COUPANG_SECRET_KEY = _secret("COUPANG_SECRET_KEY")
+
 # ── Gemini AI (secrets.toml에서 관리) ────────────────────────
 GEMINI_API_KEY = _secret("GEMINI_API_KEY")
 
