@@ -8,10 +8,17 @@ from datetime import datetime, timedelta
 
 
 def _get_datalab_creds():
-    """secrets.toml에서 데이터랩 API 인증정보 읽기"""
+    """데이터랩 API 인증정보 읽기 (TOML 섹션 → EXTRA_CREDS 순)"""
     try:
         creds = st.secrets["datalab_dashboard"]
         return creds["client_id"], creds["client_secret"]
+    except Exception:
+        pass
+    try:
+        import json, base64
+        extra = json.loads(base64.b64decode(st.secrets["EXTRA_CREDS"]))
+        creds = extra.get("datalab_dashboard", {})
+        return creds.get("client_id"), creds.get("client_secret")
     except Exception:
         return None, None
 

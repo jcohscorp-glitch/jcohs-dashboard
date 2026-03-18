@@ -4,6 +4,8 @@
 import bcrypt
 import pybase64
 import time
+import json
+import base64
 import requests
 import urllib.parse
 import pandas as pd
@@ -25,12 +27,24 @@ COMMERCE_STORES = [
 BASE_URL = "https://api.commerce.naver.com/external"
 
 
+@st.cache_data(ttl=3600)
+def _load_extra_creds() -> dict:
+    """EXTRA_CREDS (base64 JSON) 디코딩. 없으면 빈 dict."""
+    try:
+        b64 = st.secrets["EXTRA_CREDS"]
+        return json.loads(base64.b64decode(b64))
+    except Exception:
+        return {}
+
+
 def _get_store_creds(store_key: str) -> dict | None:
-    """secrets.toml에서 스토어 인증정보 읽기"""
+    """스토어 인증정보 읽기 (TOML 섹션 → EXTRA_CREDS 순으로 시도)"""
     try:
         return dict(st.secrets[store_key])
     except Exception:
-        return None
+        pass
+    extra = _load_extra_creds()
+    return extra.get(store_key)
 
 
 def _get_token(app_id: str, app_secret: str) -> str | None:
