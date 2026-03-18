@@ -495,6 +495,32 @@ with main_col:
                 cpg_camp = cpg_camp.sort_values("광고비", ascending=False)
                 st.dataframe(cpg_camp, use_container_width=True, hide_index=True)
 
+            # ── 캠페인별 꼼꼼한 액션 ──
+            if not kw_coupang.empty and "캠페인명" in kw_coupang.columns:
+                st.markdown("---")
+                st.markdown("### 📋 캠페인별 액션 플랜")
+                st.caption("각 캠페인의 키워드 분석 결과를 기반으로 자동 생성된 구체적 액션입니다.")
+                camp_actions = ae.analyze_campaign_actions(kw_coupang, campaign_col="캠페인명", margin_rate=margin_rate)
+                for ca in camp_actions:
+                    with st.expander(f"{ca['verdict']}  **{ca['campaign']}** — ROAS {ca['roas']:.0f}% | 광고비 {ae.fmt_money(ca['cost'])} | 키워드 {ca['keywords_total']}개", expanded=(ca['priority_score'] >= 30)):
+                        # KPI 요약
+                        mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+                        mc1.metric("광고비", ae.fmt_money(ca['cost']))
+                        mc2.metric("전환매출", ae.fmt_money(ca['revenue']))
+                        mc3.metric("ROAS", f"{ca['roas']:.0f}%")
+                        mc4.metric("순이익", ae.fmt_money(ca['profit']),
+                                   delta="흑자" if ca['profit'] > 0 else "적자")
+                        gc = ca['group_counts']
+                        mc5.metric("키워드", f"A:{gc['A']} B:{gc['B']} C:{gc['C']} D:{gc['D']}")
+
+                        # 액션 리스트
+                        for act in ca['actions']:
+                            urgency_color = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "⚪"}.get(act['urgency'], "")
+                            st.markdown(f"{act['icon']} **{act['label']}** {urgency_color}")
+                            st.markdown(f"  _{act['detail']}_")
+                            if 'keywords' in act and act['keywords']:
+                                st.code(", ".join(act['keywords'][:10]), language=None)
+
             # ── 심화 분석 ──
             st.markdown("---")
             st.markdown("### 쿠팡 심화 분석")
@@ -811,11 +837,12 @@ with main_col:
             st.markdown("---")
 
             # ── 서브탭 ──
-            nsub1, nsub2, nsub3, nsub4, nsub5, nsub6, nsub7, nsub8, nsub9, nsub10 = st.tabs([
+            nsub1, nsub2, nsub3, nsub4, nsub5, nsub6, nsub7, nsub8, nsub9, nsub10, nsub11 = st.tabs([
                 "📊 키워드 분석", "💰 입찰가 추천", "📈 트렌드",
                 "🏷️ 광고그룹", "📋 캠페인",
                 "⚡ 실시간 모니터링", "💳 잔액/예산 알림",
                 "🎯 CPC×CTR 매트릭스", "📅 요일별 효율", "📉 노출 추이",
+                "🔍 스토어×광고 교차",
             ])
 
             # ── 서브탭1: 키워드 분석 ──
@@ -1011,6 +1038,34 @@ with main_col:
                         )
                         fig_camp.update_layout(height=max(300, len(active_camps) * 40), template=TPL)
                         st.plotly_chart(fig_camp, use_container_width=True, key="p3_camp_roas")
+
+                    # ── 캠페인별 꼼꼼한 액션 ──
+                    if not nsa_keywords.empty and "캠페인" in nsa_keywords.columns:
+                        st.markdown("---")
+                        st.markdown("#### 📋 캠페인별 액션 플랜")
+                        st.caption("각 캠페인의 키워드를 분석하여 구체적 액션을 자동 도출합니다.")
+                        nsa_camp_actions = ae.analyze_campaign_actions(nsa_keywords, campaign_col="캠페인", margin_rate=margin_rate)
+                        for nca in nsa_camp_actions:
+                            with st.expander(
+                                f"{nca['verdict']}  **{nca['campaign']}** — ROAS {nca['roas']:.0f}% | "
+                                f"광고비 {ae.fmt_money(nca['cost'])} | 키워드 {nca['keywords_total']}개",
+                                expanded=(nca['priority_score'] >= 30)
+                            ):
+                                nc1, nc2, nc3, nc4, nc5 = st.columns(5)
+                                nc1.metric("광고비", ae.fmt_money(nca['cost']))
+                                nc2.metric("전환매출", ae.fmt_money(nca['revenue']))
+                                nc3.metric("ROAS", f"{nca['roas']:.0f}%")
+                                nc4.metric("순이익", ae.fmt_money(nca['profit']),
+                                           delta="흑자" if nca['profit'] > 0 else "적자")
+                                ngc = nca['group_counts']
+                                nc5.metric("키워드", f"A:{ngc['A']} B:{ngc['B']} C:{ngc['C']} D:{ngc['D']}")
+
+                                for nact in nca['actions']:
+                                    urg_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "⚪"}.get(nact['urgency'], "")
+                                    st.markdown(f"{nact['icon']} **{nact['label']}** {urg_icon}")
+                                    st.markdown(f"  _{nact['detail']}_")
+                                    if 'keywords' in nact and nact['keywords']:
+                                        st.code(", ".join(nact['keywords'][:10]), language=None)
 
             # ── 서브탭6: 실시간 모니터링 ──
             with nsub6:
@@ -1367,6 +1422,104 @@ with main_col:
                         ))
                         fig_cost.update_layout(height=300, template=TPL, title="일별 광고비 추이")
                         st.plotly_chart(fig_cost, use_container_width=True, key="p3_cost_trend")
+
+            # ── 서브탭11: 스토어×광고 교차 분석 ──
+            with nsub11:
+                st.markdown("#### 🔍 스마트스토어 × 광고 교차 분석")
+                st.caption("네이버 광고 API 키워드와 스마트스토어 구매 키워드를 비교합니다.")
+
+                # 스토어 키워드 데이터 로드
+                try:
+                    df_store_kw = dl.load_naver_keyword()
+                except Exception:
+                    df_store_kw = pd.DataFrame()
+
+                if df_store_kw.empty:
+                    st.warning("스마트스토어 키워드 데이터(상품/검색채널)가 없습니다.")
+                elif nsa_keywords.empty:
+                    st.warning("네이버 광고 API 키워드 데이터가 없습니다.")
+                else:
+                    cross_tab1, cross_tab2, cross_tab3 = st.tabs([
+                        "📊 키워드 갭 분석", "📈 ROAS 비교", "🏪 채널 효율",
+                    ])
+
+                    # 1) 키워드 갭 분석
+                    with cross_tab1:
+                        st.markdown("##### 광고 키워드 vs 구매 키워드 갭")
+                        gap_result = ae.analyze_keyword_gap(
+                            nsa_keywords, df_store_kw,
+                            ad_kw_col="키워드", store_kw_col="키워드",
+                            ad_cost_col="총비용" if "총비용" in nsa_keywords.columns else "광고비(VAT포함)",
+                            ad_rev_col="전환매출액" if "전환매출액" in nsa_keywords.columns else "전환매출",
+                        )
+                        gs = gap_result["summary"]
+                        if gs:
+                            g1, g2, g3 = st.columns(3)
+                            g1.metric("광고만 있는 키워드", f"{gs['ad_only_count']}개",
+                                      delta="예산 낭비 가능성", delta_color="inverse")
+                            g2.metric("구매만 있는 키워드", f"{gs['store_only_count']}개",
+                                      delta="광고 확대 기회", delta_color="normal")
+                            g3.metric("양쪽 모두 존재", f"{gs['both_count']}개")
+
+                        if gap_result["waste"]:
+                            st.markdown("**🔴 광고비 쓰지만 스토어 결제 없는 키워드 (낭비 의심)**")
+                            st.dataframe(pd.DataFrame(gap_result["waste"]).head(15),
+                                         use_container_width=True, hide_index=True)
+                        if gap_result["opportunity"]:
+                            st.markdown("**🟢 광고 안 하는데 스토어에서 결제 발생 (확대 기회)**")
+                            st.dataframe(pd.DataFrame(gap_result["opportunity"]).head(15),
+                                         use_container_width=True, hide_index=True)
+
+                    # 2) ROAS 비교
+                    with cross_tab2:
+                        st.markdown("##### 광고 ROAS vs 스토어 실제 ROAS 비교")
+                        roas_comp = ae.analyze_roas_comparison(
+                            nsa_keywords, df_store_kw,
+                            ad_kw_col="키워드", store_kw_col="키워드",
+                            ad_cost_col="총비용" if "총비용" in nsa_keywords.columns else "광고비(VAT포함)",
+                            ad_rev_col="전환매출액" if "전환매출액" in nsa_keywords.columns else "전환매출",
+                        )
+                        if roas_comp.empty:
+                            st.info("교집합 키워드가 없어 비교할 수 없습니다.")
+                        else:
+                            overrated = roas_comp[roas_comp["판정"].str.contains("과대")]
+                            underrated = roas_comp[roas_comp["판정"].str.contains("과소")]
+                            r1, r2 = st.columns(2)
+                            r1.metric("광고 과대평가 키워드", f"{len(overrated)}개",
+                                      delta="실제보다 ROAS 높게 측정", delta_color="inverse")
+                            r2.metric("광고 과소평가 키워드", f"{len(underrated)}개",
+                                      delta="실제 가치가 더 높음", delta_color="normal")
+                            st.dataframe(roas_comp.head(20), use_container_width=True, hide_index=True)
+
+                    # 3) 채널 효율
+                    with cross_tab3:
+                        st.markdown("##### 채널별 유입 효율 분석")
+                        try:
+                            df_ch = dl.load_naver_channel()
+                        except Exception:
+                            df_ch = pd.DataFrame()
+
+                        if df_ch.empty:
+                            st.info("채널 데이터(마케팅분석>검색채널)가 없습니다.")
+                        else:
+                            ch_eff = ae.analyze_channel_efficiency(df_ch)
+                            if ch_eff.empty:
+                                st.info("채널 효율 분석에 필요한 컬럼이 부족합니다.")
+                            else:
+                                st.dataframe(ch_eff, use_container_width=True, hide_index=True)
+                                # 채널 ROAS 바 차트
+                                paid_ch = ch_eff[ch_eff["광고비"] > 0]
+                                if not paid_ch.empty:
+                                    fig_ch = px.bar(
+                                        paid_ch.sort_values("ROAS(%)", ascending=True),
+                                        x="ROAS(%)", y="채널", orientation="h",
+                                        color="등급",
+                                        text=paid_ch.sort_values("ROAS(%)", ascending=True)["ROAS(%)"].apply(
+                                            lambda x: f"{x:.0f}%"
+                                        ),
+                                    )
+                                    fig_ch.update_layout(height=400, template=TPL, title="채널별 ROAS")
+                                    st.plotly_chart(fig_ch, use_container_width=True, key="p3_ch_roas")
 
             # AI 컨텍스트 보강 (API 데이터 기반)
             _ctx_nsa_api = chat.summarize_metrics(
