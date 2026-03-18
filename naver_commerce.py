@@ -31,7 +31,7 @@ BASE_URL = "https://api.commerce.naver.com/external"
 def _load_extra_creds() -> dict:
     """EXTRA_CREDS (base64 JSON) 디코딩. 없으면 빈 dict."""
     try:
-        b64 = st.secrets["EXTRA_CREDS"]
+        b64 = st.secrets["EXTRA_CREDS"].replace("\n", "").replace(" ", "")
         return json.loads(base64.b64decode(b64))
     except Exception:
         return {}

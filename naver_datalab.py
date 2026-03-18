@@ -16,7 +16,8 @@ def _get_datalab_creds():
         pass
     try:
         import json, base64
-        extra = json.loads(base64.b64decode(st.secrets["EXTRA_CREDS"]))
+        b64 = st.secrets["EXTRA_CREDS"].replace("\n", "").replace(" ", "")
+        extra = json.loads(base64.b64decode(b64))
         creds = extra.get("datalab_dashboard", {})
         return creds.get("client_id"), creds.get("client_secret")
     except Exception:
