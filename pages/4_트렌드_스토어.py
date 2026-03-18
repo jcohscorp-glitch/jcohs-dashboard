@@ -210,7 +210,7 @@ with tab_store:
 
     stores = ncom.get_store_list()
     if not stores:
-        st.warning("커머스 API 인증정보가 없습니다. secrets.toml을 확인하세요.")
+        st.info("커머스 API 인증정보가 없습니다. 로컬 환경에서만 사용 가능합니다 (IP 화이트리스트 필요).")
         st.stop()
 
     store_sub = st.tabs(["📦 주문 현황", "🏷️ 상품 현황", "📊 스토어 비교"])
