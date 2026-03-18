@@ -49,13 +49,19 @@ def analyze_campaign_actions(df_keywords, campaign_col="캠페인", margin_rate=
 
     # 캠페인별 집계
     for camp_name, camp_df in df_keywords.groupby(campaign_col):
+        # 컬럼명 유연 대응
+        cost_col = next((c for c in ["총비용", "광고비(VAT포함)", "광고비", "광고비(VAT)"] if c in camp_df.columns), None)
+        rev_col = next((c for c in ["전환매출", "전환매출액", "총 전환매출액(14일)", "총 전환매출액(1일)"] if c in camp_df.columns), None)
+        click_col = next((c for c in ["클릭수"] if c in camp_df.columns), None)
+        imp_col = next((c for c in ["노출수"] if c in camp_df.columns), None)
+
         camp_action = {
             "campaign": camp_name,
             "keywords_total": len(camp_df),
-            "cost": camp_df["총비용"].sum(),
-            "revenue": camp_df["전환매출"].sum() if "전환매출" in camp_df.columns else 0,
-            "clicks": camp_df["클릭수"].sum() if "클릭수" in camp_df.columns else 0,
-            "impressions": camp_df["노출수"].sum() if "노출수" in camp_df.columns else 0,
+            "cost": camp_df[cost_col].sum() if cost_col else 0,
+            "revenue": camp_df[rev_col].sum() if rev_col else 0,
+            "clicks": camp_df[click_col].sum() if click_col else 0,
+            "impressions": camp_df[imp_col].sum() if imp_col else 0,
             "actions": [],
             "priority_score": 0,  # 높을수록 급함
             "verdict": "",  # 종합 판정
@@ -69,18 +75,20 @@ def analyze_campaign_actions(df_keywords, campaign_col="캠페인", margin_rate=
         camp_action["profit"] = profit
 
         # ── 키워드 그룹별 분류 ──
-        grp_counts = {}
+        # Action_Group 값: "A", "B", "C", "D" 또는 "A그룹_xxx", "B그룹_xxx" 등
+        grp_a = pd.DataFrame()
+        grp_b = pd.DataFrame()
+        grp_c = pd.DataFrame()
+        n_a = n_b = n_c = n_d = 0
         if "Action_Group" in camp_df.columns:
-            grp_counts = camp_df["Action_Group"].value_counts().to_dict()
-
-        n_a = grp_counts.get("A", 0)
-        n_b = grp_counts.get("B", 0)
-        n_c = grp_counts.get("C", 0)
-        n_d = grp_counts.get("D", 0)
-
-        grp_a = camp_df[camp_df["Action_Group"] == "A"] if "Action_Group" in camp_df.columns else pd.DataFrame()
-        grp_b = camp_df[camp_df["Action_Group"] == "B"] if "Action_Group" in camp_df.columns else pd.DataFrame()
-        grp_c = camp_df[camp_df["Action_Group"] == "C"] if "Action_Group" in camp_df.columns else pd.DataFrame()
+            camp_df["_grp_letter"] = camp_df["Action_Group"].astype(str).str[0].str.upper()
+            n_a = (camp_df["_grp_letter"] == "A").sum()
+            n_b = (camp_df["_grp_letter"] == "B").sum()
+            n_c = (camp_df["_grp_letter"] == "C").sum()
+            n_d = (camp_df["_grp_letter"] == "D").sum()
+            grp_a = camp_df[camp_df["_grp_letter"] == "A"]
+            grp_b = camp_df[camp_df["_grp_letter"] == "B"]
+            grp_c = camp_df[camp_df["_grp_letter"] == "C"]
 
         camp_action["group_counts"] = {"A": n_a, "B": n_b, "C": n_c, "D": n_d}
 
@@ -124,8 +132,9 @@ def analyze_campaign_actions(df_keywords, campaign_col="캠페인", margin_rate=
 
         # ── 액션 2: C그룹 키워드 제외 ──
         if n_c > 0 and not grp_c.empty:
-            c_cost = grp_c["총비용"].sum()
-            c_keywords = grp_c.nlargest(5, "총비용")["키워드"].tolist()
+            c_cost = grp_c[cost_col].sum() if cost_col and cost_col in grp_c.columns else 0
+            sort_col_c = cost_col if cost_col and cost_col in grp_c.columns else grp_c.select_dtypes(include="number").columns[0] if len(grp_c.select_dtypes(include="number").columns) > 0 else None
+            c_keywords = grp_c.nlargest(5, sort_col_c)["키워드"].tolist() if sort_col_c and "키워드" in grp_c.columns else []
             camp_action["actions"].append({
                 "type": "keyword_exclude",
                 "icon": "✂️",
@@ -139,9 +148,10 @@ def analyze_campaign_actions(df_keywords, campaign_col="캠페인", margin_rate=
 
         # ── 액션 3: A그룹 입찰가 증액 ──
         if n_a > 0 and not grp_a.empty:
-            a_top = grp_a.nlargest(5, "전환매출" if "전환매출" in grp_a.columns else "ROAS(%)")
-            a_keywords = a_top["키워드"].tolist()
-            a_rev = grp_a["전환매출"].sum() if "전환매출" in grp_a.columns else 0
+            sort_col_a = rev_col if rev_col and rev_col in grp_a.columns else ("ROAS(%)" if "ROAS(%)" in grp_a.columns else None)
+            a_top = grp_a.nlargest(5, sort_col_a) if sort_col_a else grp_a.head(5)
+            a_keywords = a_top["키워드"].tolist() if "키워드" in a_top.columns else []
+            a_rev = grp_a[rev_col].sum() if rev_col and rev_col in grp_a.columns else 0
             camp_action["actions"].append({
                 "type": "keyword_boost",
                 "icon": "⬆️",
@@ -154,7 +164,7 @@ def analyze_campaign_actions(df_keywords, campaign_col="캠페인", margin_rate=
 
         # ── 액션 4: B그룹 → 별도 캠페인 분리 검토 ──
         if n_b >= 5:
-            b_keywords = grp_b.nlargest(5, "ROAS(%)")["키워드"].tolist() if not grp_b.empty else []
+            b_keywords = grp_b.nlargest(5, "ROAS(%)")["키워드"].tolist() if (not grp_b.empty and "ROAS(%)" in grp_b.columns and "키워드" in grp_b.columns) else []
             camp_action["actions"].append({
                 "type": "campaign_split",
                 "icon": "🔀",
