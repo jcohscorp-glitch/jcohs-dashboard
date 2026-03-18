@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+*.json
+.streamlit/secrets.toml
+run_dashboard.bat
+run_dashboard_external.bat
+_patch_*.py
