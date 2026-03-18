@@ -215,8 +215,20 @@ with tab_store:
 
     stores = ncom.get_store_list()
     if not stores:
-        st.info("커머스 API 인증정보가 없습니다. 로컬 환경에서만 사용 가능합니다 (IP 화이트리스트 필요).")
+        st.info("커머스 API 인증정보가 없습니다.")
         st.stop()
+
+    # 서버 IP 표시 및 연결 테스트
+    server_ip = ncom.get_server_ip()
+    with st.expander(f"🌐 현재 서버 IP: **{server_ip}** (커머스 API 허용 IP 등록 필요)", expanded=False):
+        st.markdown(f"""
+        네이버 커머스 API는 **허용된 IP에서만** 접근 가능합니다.
+
+        1. [네이버 커머스 API 개발자센터](https://apicenter.commerce.naver.com) 접속
+        2. 각 앱(한바샵, 조이코스, 드림프라이스, 레이캅코리아, 모그원) 설정으로 이동
+        3. **허용 IP** 항목에 `{server_ip}` 추가
+        4. 저장 후 이 페이지를 새로고침
+        """)
 
     store_sub = st.tabs(["📦 주문 현황", "🏷️ 상품 현황", "📊 스토어 비교"])
 

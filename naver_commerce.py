@@ -27,6 +27,16 @@ COMMERCE_STORES = [
 BASE_URL = "https://api.commerce.naver.com/external"
 
 
+@st.cache_data(ttl=600)
+def get_server_ip() -> str:
+    """현재 서버의 외부 IP 주소 확인"""
+    try:
+        resp = requests.get("https://api.ipify.org", timeout=5)
+        return resp.text.strip()
+    except Exception:
+        return "확인 불가"
+
+
 @st.cache_data(ttl=3600)
 def _load_extra_creds() -> dict:
     """EXTRA_CREDS (base64 JSON) 디코딩. 없으면 빈 dict."""
@@ -71,8 +81,15 @@ def _get_token(app_id: str, app_secret: str) -> str | None:
             headers={"content-type": "application/x-www-form-urlencoded"},
             timeout=10,
         )
+        if resp.status_code == 403:
+            return None  # IP 차단 — 호출부에서 일괄 안내
         resp.raise_for_status()
         return resp.json().get("access_token")
+    except requests.exceptions.HTTPError as e:
+        if "403" in str(e):
+            return None
+        st.error(f"커머스 API 토큰 발급 실패: {e}")
+        return None
     except Exception as e:
         st.error(f"커머스 API 토큰 발급 실패: {e}")
         return None
