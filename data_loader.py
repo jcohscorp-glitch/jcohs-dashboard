@@ -15,7 +15,7 @@ def _get_client():
         "https://www.googleapis.com/auth/drive.readonly",
     ]
     try:
-        sa_info = st.secrets.get("gcp_service_account", None)
+        sa_info = st.secrets["gcp_service_account"]
         if sa_info is not None:
             creds = Credentials.from_service_account_info(dict(sa_info), scopes=scopes)
             return gspread.authorize(creds)

@@ -12,9 +12,9 @@ def _secret(key, default=None):
     """Streamlit secrets → 환경변수 → 기본값 순으로 읽기"""
     try:
         import streamlit as st
-        val = st.secrets.get(key, None)
-        if val is not None:
-            return val
+        return st.secrets[key]
+    except (KeyError, AttributeError):
+        pass
     except Exception:
         pass
     return os.environ.get(key, default)
@@ -33,7 +33,7 @@ def get_service_account_path():
     """서비스 계정 JSON 경로 반환 (Cloud에서는 임시파일 생성)"""
     try:
         import streamlit as st
-        sa_info = st.secrets.get("gcp_service_account", None)
+        sa_info = st.secrets["gcp_service_account"]
         if sa_info is not None:
             tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
             json.dump(dict(sa_info), tmp)
