@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""쿠팡 Open API 연동 (WING 판매자 주문/매출/상품 조회)"""
+"""쿠팡 Open API 연동 (WING 판매자 주문/매출/상품 조회) — 멀티 계정 지원"""
 
 import hmac
 import hashlib
@@ -11,34 +11,46 @@ from datetime import datetime, timedelta
 
 
 # ═══════════════════════════════════════════════════════════════
-#  인증 (HMAC-SHA256)
+#  인증 (HMAC-SHA256) — 멀티 스토어
 # ═══════════════════════════════════════════════════════════════
 BASE_URL = "https://api-gateway.coupang.com"
 
+# secrets.toml의 섹션 이름 목록
+COUPANG_STORE_KEYS = [
+    "coupang_dvor",
+    "coupang_jcohs",
+]
 
-def _get_coupang_creds() -> dict | None:
-    """쿠팡 API 인증정보 읽기 (secrets.toml → 환경변수)"""
+
+def _get_store_creds(store_key: str) -> dict | None:
+    """스토어별 인증정보 읽기 (secrets.toml)"""
     try:
-        creds = st.secrets["coupang_wing"]
-        return dict(creds)
+        return dict(st.secrets[store_key])
     except Exception:
-        pass
-    import os
-    vendor_id = os.environ.get("COUPANG_VENDOR_ID")
-    access_key = os.environ.get("COUPANG_ACCESS_KEY")
-    secret_key = os.environ.get("COUPANG_SECRET_KEY")
-    if vendor_id and access_key and secret_key:
-        return {
-            "vendor_id": vendor_id,
-            "access_key": access_key,
-            "secret_key": secret_key,
-        }
-    return None
+        return None
+
+
+def get_store_list() -> list[dict]:
+    """등록된 쿠팡 스토어 목록 반환"""
+    stores = []
+    for key in COUPANG_STORE_KEYS:
+        creds = _get_store_creds(key)
+        if creds:
+            stores.append({
+                "key": key,
+                "name": creds.get("name", key),
+                "vendor_id": creds.get("vendor_id", ""),
+            })
+    return stores
+
+
+def is_configured() -> bool:
+    """쿠팡 API 설정 여부 확인 (최소 1개 계정)"""
+    return len(get_store_list()) > 0
 
 
 def _generate_hmac(method: str, url_path: str, secret_key: str, access_key: str) -> str:
     """HMAC-SHA256 서명 생성 → Authorization 헤더 값 반환"""
-    # path와 query 분리
     parts = url_path.split("?")
     path = parts[0]
     query = parts[1] if len(parts) > 1 else ""
@@ -60,9 +72,10 @@ def _generate_hmac(method: str, url_path: str, secret_key: str, access_key: str)
     )
 
 
-def _coupang_request(method: str, path: str, params: dict = None, json_body: dict = None) -> dict | None:
-    """쿠팡 API 호출 공통 함수"""
-    creds = _get_coupang_creds()
+def _coupang_request(store_key: str, method: str, path: str,
+                     params: dict = None, json_body: dict = None) -> dict | None:
+    """쿠팡 API 호출 공통 함수 (스토어별)"""
+    creds = _get_store_creds(store_key)
     if not creds:
         return None
 
@@ -96,28 +109,18 @@ def _coupang_request(method: str, path: str, params: dict = None, json_body: dic
         if resp.status_code == 200:
             return resp.json()
         else:
-            st.warning(f"쿠팡 API 오류: {resp.status_code} - {resp.text[:200]}")
+            st.warning(f"쿠팡 API 오류 ({store_key}): {resp.status_code} - {resp.text[:200]}")
             return None
     except Exception as e:
-        st.error(f"쿠팡 API 호출 실패: {e}")
+        st.error(f"쿠팡 API 호출 실패 ({store_key}): {e}")
         return None
-
-
-def is_configured() -> bool:
-    """쿠팡 API 설정 여부 확인"""
-    return _get_coupang_creds() is not None
-
-
-def get_vendor_id() -> str | None:
-    """vendor_id 반환"""
-    creds = _get_coupang_creds()
-    return creds["vendor_id"] if creds else None
 
 
 # ═══════════════════════════════════════════════════════════════
 #  주문 조회
 # ═══════════════════════════════════════════════════════════════
 def get_orders(
+    store_key: str,
     start_date: str = None,
     end_date: str = None,
     status: str = "ACCEPT",
@@ -126,16 +129,16 @@ def get_orders(
     쿠팡 주문 목록 조회 (일별 페이징)
 
     Args:
+        store_key: COUPANG_STORE_KEYS 중 하나
         start_date: 시작일 (YYYY-MM-DD), 기본 7일 전
         end_date: 종료일 (YYYY-MM-DD), 기본 오늘
         status: 주문상태 (ACCEPT, INSTRUCT, DEPARTURE, DELIVERING, FINAL_DELIVERY 등)
-
-    Returns:
-        DataFrame: 주문 목록
     """
-    vendor_id = get_vendor_id()
-    if not vendor_id:
+    creds = _get_store_creds(store_key)
+    if not creds:
         return pd.DataFrame()
+
+    vendor_id = creds["vendor_id"]
 
     if not end_date:
         end_date = datetime.now().strftime("%Y-%m-%d")
@@ -149,7 +152,7 @@ def get_orders(
 
     while current <= d_end:
         page = 1
-        for _ in range(50):  # 최대 50페이지
+        for _ in range(50):
             path = f"/v5/vendors/{vendor_id}/ordersheets"
             params = {
                 "createdAtFrom": current.strftime("%Y-%m-%d"),
@@ -159,7 +162,7 @@ def get_orders(
                 "page": str(page),
             }
 
-            data = _coupang_request("GET", path, params=params)
+            data = _coupang_request(store_key, "GET", path, params=params)
             if not data or not data.get("data"):
                 break
 
@@ -179,7 +182,6 @@ def get_orders(
                     "수취인": order.get("receiver", {}).get("name", ""),
                 })
 
-            # 다음 페이지 확인
             if len(orders) < 50:
                 break
             page += 1
@@ -198,22 +200,16 @@ def get_orders(
 #  매출 내역 조회
 # ═══════════════════════════════════════════════════════════════
 def get_sales(
+    store_key: str,
     start_date: str = None,
     end_date: str = None,
 ) -> pd.DataFrame:
-    """
-    매출 내역 조회 (구매확정 기준)
-
-    Args:
-        start_date: 시작일 (YYYY-MM-DD), 기본 30일 전
-        end_date: 종료일 (YYYY-MM-DD), 기본 오늘
-
-    Returns:
-        DataFrame: 매출 내역
-    """
-    vendor_id = get_vendor_id()
-    if not vendor_id:
+    """매출 내역 조회 (구매확정 기준)"""
+    creds = _get_store_creds(store_key)
+    if not creds:
         return pd.DataFrame()
+
+    vendor_id = creds["vendor_id"]
 
     if not end_date:
         end_date = datetime.now().strftime("%Y-%m-%d")
@@ -223,7 +219,7 @@ def get_sales(
     all_sales = []
     token = None
 
-    for _ in range(100):  # 페이징
+    for _ in range(100):
         path = f"/v5/vendors/{vendor_id}/settlementSales"
         params = {
             "recognizedFrom": start_date,
@@ -233,7 +229,7 @@ def get_sales(
         if token:
             params["token"] = token
 
-        data = _coupang_request("GET", path, params=params)
+        data = _coupang_request(store_key, "GET", path, params=params)
         if not data or not data.get("data"):
             break
 
@@ -253,7 +249,6 @@ def get_sales(
                 "정산금액": sale.get("settlementAmount", 0),
             })
 
-        # 다음 페이지
         token = data.get("nextToken")
         if not token:
             break
@@ -269,21 +264,17 @@ def get_sales(
 # ═══════════════════════════════════════════════════════════════
 #  상품 조회
 # ═══════════════════════════════════════════════════════════════
-def get_products() -> pd.DataFrame:
-    """
-    판매자 상품 목록 조회
-
-    Returns:
-        DataFrame: 상품 목록
-    """
-    vendor_id = get_vendor_id()
-    if not vendor_id:
+def get_products(store_key: str) -> pd.DataFrame:
+    """판매자 상품 목록 조회"""
+    creds = _get_store_creds(store_key)
+    if not creds:
         return pd.DataFrame()
 
+    vendor_id = creds["vendor_id"]
     all_products = []
     next_token = None
 
-    for _ in range(20):  # 최대 20페이지
+    for _ in range(20):
         path = f"/v2/providers/seller_api/apis/api/v1/marketplace/seller-products"
         params = {
             "vendorId": vendor_id,
@@ -292,7 +283,7 @@ def get_products() -> pd.DataFrame:
         if next_token:
             params["nextToken"] = next_token
 
-        data = _coupang_request("GET", path, params=params)
+        data = _coupang_request(store_key, "GET", path, params=params)
         if not data or not data.get("data"):
             break
 
@@ -322,26 +313,43 @@ def get_products() -> pd.DataFrame:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  배송 상태 이력 조회
+#  전체 스토어 통합 조회
 # ═══════════════════════════════════════════════════════════════
-def get_delivery_history(shipment_box_id: str) -> pd.DataFrame:
-    """개별 주문의 배송 상태 변경 이력 조회"""
-    vendor_id = get_vendor_id()
-    if not vendor_id:
+def get_all_store_orders(start_date: str = None, end_date: str = None,
+                         status: str = "ACCEPT") -> pd.DataFrame:
+    """모든 쿠팡 스토어의 주문을 통합 조회"""
+    all_dfs = []
+    for store in get_store_list():
+        df = get_orders(store["key"], start_date, end_date, status)
+        if not df.empty:
+            df["스토어"] = store["name"]
+            all_dfs.append(df)
+    if not all_dfs:
         return pd.DataFrame()
+    return pd.concat(all_dfs, ignore_index=True)
 
-    path = f"/v5/vendors/{vendor_id}/ordersheets/{shipment_box_id}/history"
-    data = _coupang_request("GET", path)
 
-    if not data or not data.get("data"):
+def get_all_store_sales(start_date: str = None, end_date: str = None) -> pd.DataFrame:
+    """모든 쿠팡 스토어의 매출을 통합 조회"""
+    all_dfs = []
+    for store in get_store_list():
+        df = get_sales(store["key"], start_date, end_date)
+        if not df.empty:
+            df["스토어"] = store["name"]
+            all_dfs.append(df)
+    if not all_dfs:
         return pd.DataFrame()
+    return pd.concat(all_dfs, ignore_index=True)
 
-    history = []
-    for item in data["data"]:
-        history.append({
-            "상태": item.get("status", ""),
-            "변경일시": item.get("changedAt", ""),
-            "설명": item.get("description", ""),
-        })
 
-    return pd.DataFrame(history)
+def get_all_store_products() -> pd.DataFrame:
+    """모든 쿠팡 스토어의 상품을 통합 조회"""
+    all_dfs = []
+    for store in get_store_list():
+        df = get_products(store["key"])
+        if not df.empty:
+            df["스토어"] = store["name"]
+            all_dfs.append(df)
+    if not all_dfs:
+        return pd.DataFrame()
+    return pd.concat(all_dfs, ignore_index=True)
