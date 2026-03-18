@@ -11,7 +11,7 @@ import config
 def _get_client():
     """gspread 클라이언트 생성 (Cloud: secrets dict / 로컬: JSON 파일)"""
     scopes = [
-        "https://www.googleapis.com/auth/spreadsheets.readonly",
+        "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive.readonly",
     ]
     try:
@@ -19,20 +19,27 @@ def _get_client():
         if sa_info is not None:
             creds = Credentials.from_service_account_info(dict(sa_info), scopes=scopes)
             return gspread.authorize(creds)
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"서비스 계정 인증 실패: {e}")
     creds = Credentials.from_service_account_file(config.SERVICE_ACCOUNT_JSON, scopes=scopes)
     return gspread.authorize(creds)
 
 
 def _load_sheet(sheet_id: str, tab_name: str) -> pd.DataFrame:
     """시트 탭을 DataFrame으로 로드"""
-    client = _get_client()
-    ws = client.open_by_key(sheet_id).worksheet(tab_name)
-    rows = ws.get_all_values()
-    if len(rows) < 2:
+    if not sheet_id:
+        st.error(f"시트 ID가 없습니다. tab_name={tab_name}")
         return pd.DataFrame()
-    return pd.DataFrame(rows[1:], columns=rows[0])
+    try:
+        client = _get_client()
+        ws = client.open_by_key(sheet_id).worksheet(tab_name)
+        rows = ws.get_all_values()
+        if len(rows) < 2:
+            return pd.DataFrame()
+        return pd.DataFrame(rows[1:], columns=rows[0])
+    except Exception as e:
+        st.error(f"시트 로드 실패: sheet_id={sheet_id[:8]}..., tab={tab_name}, 에러={e}")
+        return pd.DataFrame()
 
 
 def _parse_number(s):
