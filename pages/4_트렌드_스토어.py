@@ -423,7 +423,7 @@ if tab_coupang is not None:
 
         cp_store_names = [s["name"] for s in cp_stores]
 
-        cp_sub = st.tabs(["📦 주문 현황", "💰 매출 내역", "🏷️ 상품 현황", "📊 스토어 비교"])
+        cp_sub = st.tabs(["📦 주문 현황", "💰 매출 내역", "🏷️ 상품 현황", "📦 재고 현황", "📊 스토어 비교"])
 
         # ── 쿠팡 주문 현황 ────────────────────────────────────────
         with cp_sub[0]:
@@ -641,8 +641,59 @@ if tab_coupang is not None:
 
                     st.dataframe(df_prod, use_container_width=True)
 
-        # ── 쿠팡 스토어 비교 ──────────────────────────────────────
+        # ── 로켓그로스 재고 현황 ──────────────────────────────────
         with cp_sub[3]:
+            S.slide_header("로켓그로스 재고 현황", "Rocket Growth Inventory")
+
+            cp_inv_stores = st.multiselect(
+                "스토어 선택", cp_store_names, default=cp_store_names,
+                key="cp_store_select_inv",
+            )
+
+            if st.button("📦 재고 조회", key="btn_cp_inventory"):
+                all_cp_inv = []
+                selected = [s for s in cp_stores if s["name"] in cp_inv_stores]
+                progress = st.progress(0)
+
+                for i, store in enumerate(selected):
+                    with st.spinner(f"{store['name']} 재고 조회 중..."):
+                        df = cpcom.get_inventory(store["key"])
+                        if not df.empty:
+                            df["스토어"] = store["name"]
+                            all_cp_inv.append(df)
+                    progress.progress((i + 1) / len(selected))
+                progress.empty()
+
+                if not all_cp_inv:
+                    st.info("재고 데이터가 없습니다. (로켓그로스 미이용 스토어일 수 있습니다)")
+                else:
+                    df_inv = pd.concat(all_cp_inv, ignore_index=True)
+                    st.success(f"총 {len(df_inv):,}개 SKU 재고 조회 완료")
+
+                    # 요약 지표
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("총 SKU 수", f"{len(df_inv):,}개")
+                    with col2:
+                        st.metric("총 주문가능수량", f"{df_inv['주문가능수량'].sum():,}개")
+                    with col3:
+                        st.metric("30일 총 판매량", f"{df_inv['30일판매량'].sum():,}개")
+
+                    # 재고 부족 경고 (주문가능수량 < 30일판매량)
+                    df_low = df_inv[df_inv["주문가능수량"] < df_inv["30일판매량"]].copy()
+                    if not df_low.empty:
+                        st.warning(f"⚠️ 재고 부족 위험 SKU: {len(df_low)}개 (30일 판매량 > 현재 재고)")
+                        st.dataframe(
+                            df_low.sort_values("주문가능수량"),
+                            use_container_width=True,
+                        )
+
+                    # 전체 데이터
+                    with st.expander("전체 재고 데이터"):
+                        st.dataframe(df_inv, use_container_width=True)
+
+        # ── 쿠팡 스토어 비교 ──────────────────────────────────────
+        with cp_sub[4]:
             S.slide_header("쿠팡 스토어 성과 비교", "Coupang Store Comparison")
             st.caption("최근 7일 주문 기준으로 드보르/제이코스를 비교합니다.")
 

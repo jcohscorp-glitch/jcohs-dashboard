@@ -359,6 +359,72 @@ def get_products(store_key: str) -> pd.DataFrame:
     return pd.DataFrame(all_products)
 
 
+
+# ═══════════════════════════════════════════════════════════════
+#  로켓그로스 재고 조회
+# ═══════════════════════════════════════════════════════════════
+def get_inventory(store_key: str, vendor_item_id: str = None) -> pd.DataFrame:
+    """로켓그로스 재고 요약 조회 (로켓창고 재고 API)"""
+    creds = _get_store_creds(store_key)
+    if not creds:
+        return pd.DataFrame()
+
+    vendor_id = creds["vendor_id"]
+    all_items = []
+    next_token = None
+
+    for _ in range(100):
+        path = f"/v2/providers/rg_open_api/apis/api/v1/vendors/{vendor_id}/rg/inventory/summaries"
+        params = {}
+        if vendor_item_id:
+            params["vendorItemId"] = vendor_item_id
+        elif next_token:
+            params["nextToken"] = next_token
+
+        data = _coupang_request(store_key, "GET", path, params=params if params else None)
+        if not data or not data.get("data"):
+            break
+
+        items = data["data"]
+        if not items:
+            break
+
+        for item in items:
+            inv = item.get("inventoryDetails", {})
+            sales = item.get("salesCountMap", {})
+            all_items.append({
+                "vendorItemId": item.get("vendorItemId", ""),
+                "외부SKU": item.get("externalSkuId", ""),
+                "주문가능수량": inv.get("totalOrderableQuantity", 0),
+                "30일판매량": sales.get("SALES_COUNT_LAST_THIRTY_DAYS", 0),
+            })
+
+        # vendorItemId 지정 시 페이징 없음
+        if vendor_item_id:
+            break
+
+        next_token = data.get("nextToken")
+        if not next_token:
+            break
+
+    if not all_items:
+        return pd.DataFrame()
+
+    return pd.DataFrame(all_items)
+
+
+def get_all_store_inventory() -> pd.DataFrame:
+    """모든 쿠팡 스토어의 로켓그로스 재고를 통합 조회"""
+    all_dfs = []
+    for store in get_store_list():
+        df = get_inventory(store["key"])
+        if not df.empty:
+            df["스토어"] = store["name"]
+            all_dfs.append(df)
+    if not all_dfs:
+        return pd.DataFrame()
+    return pd.concat(all_dfs, ignore_index=True)
+
 # ═══════════════════════════════════════════════════════════════
 #  전체 스토어 통합 조회
 # ═══════════════════════════════════════════════════════════════
