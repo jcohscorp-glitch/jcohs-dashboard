@@ -167,7 +167,7 @@ def get_orders(
     while current <= d_end:
         page = 1
         for _ in range(50):
-            path = f"/v5/vendors/{vendor_id}/ordersheets"
+            path = f"/v2/providers/openapi/apis/api/v4/vendors/{vendor_id}/ordersheets"
             params = {
                 "createdAtFrom": current.strftime("%Y-%m-%d"),
                 "createdAtTo": current.strftime("%Y-%m-%d"),
@@ -234,7 +234,7 @@ def get_sales(
     token = None
 
     for _ in range(100):
-        path = f"/v5/vendors/{vendor_id}/settlementSales"
+        path = f"/v2/providers/openapi/apis/api/v4/vendors/{vendor_id}/settlementSales"
         params = {
             "recognizedFrom": start_date,
             "recognizedTo": end_date,
