@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 BASE_URL = "https://api-gateway.coupang.com"
 
 # 프록시 설정 (닷넷피아 고정 IP 서버 경유)
-PROXY_URL = "http://www.jcohsadmin.com/coupang_proxy.asp"
+PROXY_URL = "http://119.205.211.3/coupang_proxy.asp"
 PROXY_SECRET = "jcohs-coupang-proxy-2026-secret"
 USE_PROXY = True  # True: 프록시 경유 (Cloud), False: 직접 호출 (로컬)
 
@@ -116,12 +116,16 @@ def _coupang_request(store_key: str, method: str, path: str,
                 "X-Cp-Method": method,
                 "X-Cp-Path": full_path,
                 "Content-Type": "application/json;charset=UTF-8",
+                "Host": "www.jcohsadmin.com",
+                "User-Agent": "JCOHS-Dashboard/1.0",
             }
             if method in ("POST", "PUT"):
                 resp = requests.post(PROXY_URL, headers=proxy_headers,
-                                     json=json_body or {}, timeout=60)
+                                     json=json_body or {}, timeout=60,
+                                     allow_redirects=False)
             else:
-                resp = requests.post(PROXY_URL, headers=proxy_headers, timeout=60)
+                resp = requests.post(PROXY_URL, headers=proxy_headers,
+                                     timeout=60, allow_redirects=False)
         else:
             # ── 직접 호출 (로컬 환경) ──
             headers = {
