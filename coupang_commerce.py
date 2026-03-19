@@ -17,6 +17,11 @@ from datetime import datetime, timedelta
 # ═══════════════════════════════════════════════════════════════
 BASE_URL = "https://api-gateway.coupang.com"
 
+# 프록시 설정 (닷넷피아 고정 IP 서버 경유)
+PROXY_URL = "http://www.jcohsadmin.com/coupang_proxy.asp"
+PROXY_SECRET = "jcohs-coupang-proxy-2026-secret"
+USE_PROXY = True  # True: 프록시 경유 (Cloud), False: 직접 호출 (로컬)
+
 # secrets.toml의 섹션 이름 목록
 COUPANG_STORE_KEYS = [
     "coupang_dvor",
@@ -88,7 +93,7 @@ def _generate_hmac(method: str, url_path: str, secret_key: str, access_key: str)
 
 def _coupang_request(store_key: str, method: str, path: str,
                      params: dict = None, json_body: dict = None) -> dict | None:
-    """쿠팡 API 호출 공통 함수 (스토어별)"""
+    """쿠팡 API 호출 공통 함수 (스토어별) — 프록시 지원"""
     creds = _get_store_creds(store_key)
     if not creds:
         return None
@@ -102,26 +107,48 @@ def _coupang_request(store_key: str, method: str, path: str,
 
     authorization = _generate_hmac(method, full_path, creds["secret_key"], creds["access_key"])
 
-    headers = {
-        "Authorization": authorization,
-        "Content-Type": "application/json;charset=UTF-8",
-        "X-Requested-By": "JCOHS-Dashboard",
-    }
-
-    url = BASE_URL + full_path
-
     try:
-        if method == "GET":
-            resp = requests.get(url, headers=headers, timeout=30)
-        elif method == "POST":
-            resp = requests.post(url, headers=headers, json=json_body or {}, timeout=30)
-        elif method == "PUT":
-            resp = requests.put(url, headers=headers, json=json_body or {}, timeout=30)
+        if USE_PROXY:
+            # ── 프록시 경유 (Cloud 환경) ──
+            from urllib.parse import quote
+            proxy_params = f"method={method}&path={quote(full_path, safe='')}"
+            proxy_url = f"{PROXY_URL}?{proxy_params}"
+            proxy_headers = {
+                "X-Proxy-Auth": PROXY_SECRET,
+                "X-Coupang-Auth": authorization,
+                "Content-Type": "application/json;charset=UTF-8",
+            }
+            if method in ("POST", "PUT"):
+                resp = requests.post(proxy_url, headers=proxy_headers,
+                                     json=json_body or {}, timeout=60)
+            else:
+                resp = requests.get(proxy_url, headers=proxy_headers, timeout=60)
         else:
-            return None
+            # ── 직접 호출 (로컬 환경) ──
+            headers = {
+                "Authorization": authorization,
+                "Content-Type": "application/json;charset=UTF-8",
+                "X-Requested-By": "JCOHS-Dashboard",
+            }
+            url = BASE_URL + full_path
+            if method == "GET":
+                resp = requests.get(url, headers=headers, timeout=30)
+            elif method == "POST":
+                resp = requests.post(url, headers=headers, json=json_body or {}, timeout=30)
+            elif method == "PUT":
+                resp = requests.put(url, headers=headers, json=json_body or {}, timeout=30)
+            else:
+                return None
 
         if resp.status_code == 200:
-            return resp.json()
+            data = resp.json()
+            # 프록시 경유 시 실제 상태 확인
+            if USE_PROXY and "proxy_status" in data:
+                ps = data["proxy_status"]
+                if ps != 200:
+                    st.warning(f"쿠팡 API 오류 ({store_key}): {ps} - {data.get('proxy_body', data.get('proxy_error', ''))[:200]}")
+                    return None
+            return data
         else:
             st.warning(f"쿠팡 API 오류 ({store_key}): {resp.status_code} - {resp.text[:200]}")
             return None
