@@ -234,10 +234,11 @@ def get_sales(
     token = None
 
     for _ in range(100):
-        path = f"/v2/providers/openapi/apis/api/v4/vendors/{vendor_id}/revenues"
+        path = "/v2/providers/openapi/apis/api/v1/revenue-history"
         params = {
-            "recognizedFrom": start_date,
-            "recognizedTo": end_date,
+            "vendorId": vendor_id,
+            "recognitionDateFrom": start_date,
+            "recognitionDateTo": end_date,
             "maxPerPage": "100",
         }
         if token:
