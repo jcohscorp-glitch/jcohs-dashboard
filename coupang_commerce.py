@@ -234,7 +234,7 @@ def get_sales(
     token = None
 
     for _ in range(100):
-        path = f"/v2/providers/openapi/apis/api/v4/vendors/{vendor_id}/settlementSales"
+        path = f"/v2/providers/openapi/apis/api/v4/vendors/{vendor_id}/revenues"
         params = {
             "recognizedFrom": start_date,
             "recognizedTo": end_date,
@@ -257,10 +257,10 @@ def get_sales(
                 "주문번호": sale.get("orderId", ""),
                 "상품명": sale.get("vendorItemName", ""),
                 "수량": sale.get("quantity", 0),
-                "판매금액": sale.get("salePrice", 0),
+                "판매금액": sale.get("orderPrice", 0),
                 "수수료": sale.get("commission", 0),
                 "배송비": sale.get("shippingFee", 0),
-                "정산금액": sale.get("settlementAmount", 0),
+                "정산금액": sale.get("settlePrice", 0),
             })
 
         token = data.get("nextToken")
