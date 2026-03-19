@@ -92,7 +92,8 @@ def _generate_hmac(method: str, url_path: str, secret_key: str, access_key: str)
 
 
 def _coupang_request(store_key: str, method: str, path: str,
-                     params: dict = None, json_body: dict = None) -> dict | None:
+                     params: dict = None, json_body: dict = None,
+                     extra_headers: dict = None) -> dict | None:
     """쿠팡 API 호출 공통 함수 (스토어별) — 프록시 지원"""
     creds = _get_store_creds(store_key)
     if not creds:
@@ -119,6 +120,9 @@ def _coupang_request(store_key: str, method: str, path: str,
                 "Host": "www.jcohsadmin.com",
                 "User-Agent": "JCOHS-Dashboard/1.0",
             }
+            if extra_headers:
+                for k, v in extra_headers.items():
+                    proxy_headers[f"X-Cp-Hdr-{k}"] = v
             if method in ("POST", "PUT"):
                 resp = requests.post(PROXY_URL, headers=proxy_headers,
                                      json=json_body or {}, timeout=60,
@@ -133,6 +137,8 @@ def _coupang_request(store_key: str, method: str, path: str,
                 "Content-Type": "application/json;charset=UTF-8",
                 "X-Requested-By": "JCOHS-Dashboard",
             }
+            if extra_headers:
+                headers.update(extra_headers)
             url = BASE_URL + full_path
             if method == "GET":
                 resp = requests.get(url, headers=headers, timeout=30)
@@ -381,7 +387,8 @@ def get_inventory(store_key: str, vendor_item_id: str = None) -> pd.DataFrame:
         elif next_token:
             params["nextToken"] = next_token
 
-        data = _coupang_request(store_key, "GET", path, params=params if params else None)
+        data = _coupang_request(store_key, "GET", path, params=params if params else None,
+                                       extra_headers={"X-MARKET": "KR"})
         if not data or not data.get("data"):
             break
 

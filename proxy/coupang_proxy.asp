@@ -64,6 +64,13 @@ http.SetRequestHeader "Content-Type", "application/json;charset=UTF-8"
 http.SetRequestHeader "X-Requested-By", "JCOHS-Dashboard"
 http.SetRequestHeader "X-EXTENDED-TIMEOUT", "90000"
 
+' -- 추가 헤더 패스스루 (X-Cp-Hdr-* -> *) --
+Dim xMarket
+xMarket = Request.ServerVariables("HTTP_X_CP_HDR_X_MARKET")
+If xMarket <> "" Then
+    http.SetRequestHeader "X-MARKET", xMarket
+End If
+
 If targetMethod = "POST" Or targetMethod = "PUT" Then
     http.Send targetBody
 Else
