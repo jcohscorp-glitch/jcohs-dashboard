@@ -18,7 +18,7 @@ import ai_chat as chat
 st.set_page_config(page_title="현재 현황", page_icon="📊", layout="wide")
 S.inject_css()
 TPL = S.TPL
-st.title("📊 현재 현황")
+S.page_header("현재 현황", "매출 · 광고 · 채널 통합 분석")
 
 # ── 데이터 로드 ──────────────────────────────────────────────
 with st.spinner("데이터 로딩 중..."):
@@ -325,7 +325,7 @@ with main_col:
     # ═══════════════════════════════════════════════════════════
     with tab1:
         # KPI
-        st.markdown("### 핵심 지표")
+        S.slide_header("핵심 지표", "Key Metrics")
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("이번 달 매출", f"{month_sales/1e8:.1f}억")
         c2.metric("목표 달성률", f"{achievement:.1f}%")
@@ -337,12 +337,12 @@ with main_col:
         else:
             c5.metric("전년 동월", "데이터 없음")
 
-        st.markdown("---")
+        st.markdown("")
 
         # 게이지 + 채널 파이
         col_g, col_p = st.columns([1, 1])
         with col_g:
-            st.markdown("### 목표 달성 게이지")
+            S.slide_header("목표 달성 게이지", "Monthly Target Gauge")
             fig_gauge = go.Figure(go.Indicator(
                 mode="gauge+number+delta",
                 value=month_sales / 1e8,
@@ -368,7 +368,7 @@ with main_col:
             st.plotly_chart(fig_gauge, use_container_width=True)
 
         with col_p:
-            st.markdown("### 채널별 매출 비중")
+            S.slide_header("채널별 매출 비중", "Sales by Channel")
             if not channel_sales.empty:
                 fig_pie = px.pie(channel_sales, values="총 판매금액", names="외부몰/벤더명",
                                 hole=0.45, color_discrete_sequence=S.PALETTE)
@@ -380,7 +380,7 @@ with main_col:
                 st.plotly_chart(fig_pie, use_container_width=True)
 
         # 월별 추이
-        st.markdown("### 월별 매출 추이")
+        S.slide_header("월별 매출 추이", "Monthly Sales Trend")
         monthly_26 = df_26.groupby(df_26["주문일시"].dt.to_period("M"))["총 판매금액"].sum().reset_index()
         monthly_26["월"] = monthly_26["주문일시"].dt.to_timestamp()
         monthly_26.rename(columns={"총 판매금액": "26년 매출"}, inplace=True)
@@ -408,7 +408,7 @@ with main_col:
         st.plotly_chart(fig_trend, use_container_width=True)
 
         # 일별 트렌드
-        st.markdown("### 일별 매출 트렌드")
+        S.slide_header("일별 매출 트렌드", "Daily Sales Trend")
         daily = df_month.groupby(df_month["주문일시"].dt.date)["총 판매금액"].sum().reset_index()
         daily.columns = ["날짜", "매출"]
         fig_daily = go.Figure()
@@ -425,7 +425,7 @@ with main_col:
         st.plotly_chart(fig_daily, use_container_width=True)
 
         # 채널별 테이블
-        st.markdown("### 채널별 매출 상세")
+        S.slide_header("채널별 매출 상세", "Channel Sales Detail")
         if not channel_sales.empty:
             ch_detail = channel_sales.copy()
             ch_detail["비중(%)"] = (ch_detail["총 판매금액"] / month_sales * 100).round(1)
@@ -442,12 +442,12 @@ with main_col:
         c2.metric("총 마진", f"{total_margin/1e8:.2f}억")
         c3.metric("마진율", f"{margin_rate_v:.1f}%")
         c4.metric("총 판매 수량", f"{total_qty:,.0f}개")
-        st.markdown("---")
+        st.markdown("")
 
         # 채널별 + 브랜드별
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown("### 채널별 매출")
+            S.slide_header("채널별 매출", "Sales by Channel")
             ch = df_f.groupby("외부몰/벤더명").agg(매출=("총 판매금액", "sum")).sort_values("매출", ascending=True).reset_index()
             fig_ch = px.bar(ch, x="매출", y="외부몰/벤더명", orientation="h", text_auto=".3s",
                             color="매출", color_continuous_scale=S.GRADIENT_BLUE)
@@ -457,7 +457,7 @@ with main_col:
             st.plotly_chart(fig_ch, use_container_width=True)
 
         with col2:
-            st.markdown("### 브랜드별 매출")
+            S.slide_header("브랜드별 매출", "Sales by Brand")
             br = df_f.groupby("브랜드").agg(매출=("총 판매금액", "sum")).sort_values("매출", ascending=True).reset_index()
             fig_br = px.bar(br, x="매출", y="브랜드", orientation="h", text_auto=".3s",
                             color="매출", color_continuous_scale=S.GRADIENT_WARM)
@@ -467,7 +467,7 @@ with main_col:
             st.plotly_chart(fig_br, use_container_width=True)
 
         # 상품 Top 20
-        st.markdown("### 상품 매출 Top 20")
+        S.slide_header("상품 매출 Top 20", "Top 20 Products")
         top_prod = df_f.groupby("상품명").agg(매출=("총 판매금액", "sum"), 수량=("수량", "sum"),
                                               마진=("마진", "sum")).sort_values("매출", ascending=False).head(20).reset_index()
         top_prod["마진율(%)"] = (top_prod["마진"] / top_prod["매출"] * 100).round(1)
@@ -477,7 +477,7 @@ with main_col:
         st.dataframe(top_prod, use_container_width=True, hide_index=True)
 
         # WoW/MoM/YoY
-        st.markdown("### WoW · MoM · YoY 비교")
+        S.slide_header("WoW · MoM · YoY 비교", "Period-over-Period Comparison")
         monthly_all = df_26.groupby(df_26["주문일시"].dt.to_period("M"))["총 판매금액"].sum()
         compare_data = []
         for period in monthly_all.index:
@@ -499,7 +499,7 @@ with main_col:
             st.dataframe(pd.DataFrame(compare_data), use_container_width=True, hide_index=True)
 
         # 채널별 마진
-        st.markdown("### 채널별 마진 분석")
+        S.slide_header("채널별 마진 분석", "Channel Margin Analysis")
         margin_ch = df_f.groupby("외부몰/벤더명").agg(매출=("총 판매금액", "sum"), 마진=("마진", "sum")).reset_index()
         margin_ch["마진율(%)"] = (margin_ch["마진"] / margin_ch["매출"] * 100).round(1)
         margin_ch = margin_ch.sort_values("매출", ascending=False)
@@ -521,17 +521,17 @@ with main_col:
             c2.metric("총 전환매출", f"{total_rev/1e6:.1f}백만")
             c3.metric("통합 ROAS", f"{total_roas:.0f}%")
             c4.metric("총 클릭수", f"{total_clicks:,.0f}")
-            st.markdown("---")
+            st.markdown("")
 
             # 플랫폼 비교
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown("### 플랫폼별 광고비")
+                S.slide_header("플랫폼별 광고비", "Ad Spend by Platform")
                 fig_cost = px.bar(df_summary, x="플랫폼", y="광고비", color="플랫폼", text_auto=".3s")
                 fig_cost.update_layout(height=350, showlegend=False, margin=dict(t=30, b=30))
                 st.plotly_chart(fig_cost, use_container_width=True)
             with col2:
-                st.markdown("### 플랫폼별 ROAS")
+                S.slide_header("플랫폼별 ROAS", "ROAS by Platform")
                 roas_df = df_summary[df_summary["ROAS(%)"] > 0]
                 if not roas_df.empty:
                     fig_roas = px.bar(roas_df, x="플랫폼", y="ROAS(%)", color="플랫폼", text_auto=".0f")
@@ -541,7 +541,7 @@ with main_col:
                     st.info("ROAS 데이터가 있는 플랫폼이 없습니다.")
 
             # 요약 테이블
-            st.markdown("### 플랫폼별 요약")
+            S.slide_header("플랫폼별 요약", "Platform Summary")
             disp_s = df_summary.copy()
             disp_s["광고비"] = disp_s["광고비"].apply(lambda x: f"{x:,.0f}")
             disp_s["전환매출"] = disp_s["전환매출"].apply(lambda x: f"{x:,.0f}")
@@ -552,10 +552,10 @@ with main_col:
             disp_s["CPC"] = disp_s["CPC"].apply(lambda x: f"{x:,.0f}")
             st.dataframe(disp_s, use_container_width=True, hide_index=True)
 
-        st.markdown("---")
+        st.markdown("")
 
         # 일별 광고비 추이
-        st.markdown("### 일별 광고비 추이")
+        S.slide_header("일별 광고비 추이", "Daily Ad Spend Trend")
         daily_costs = []
         if "네이버SA" in platforms and not nsa_f.empty:
             d = nsa_f.groupby(nsa_f["날짜"].dt.date).agg(광고비=("총비용(VAT포함,원)", "sum")).reset_index()
@@ -632,7 +632,7 @@ with main_col:
 
                 # 채널별 유입/전환
                 if not df_ch.empty:
-                    st.markdown("### 채널별 유입 & 전환")
+                    S.slide_header("채널별 유입 & 전환", "Traffic & Conversion by Channel")
                     ch_agg = df_ch.groupby("채널그룹").agg(
                         유입수=("유입수", "sum"), 고객수=("고객수", "sum"), 광고비=("광고비", "sum"),
                         결제수=("결제수(마지막클릭)", "sum"), 결제금액=("결제금액(마지막클릭)", "sum"),
@@ -665,7 +665,9 @@ with main_col:
                     st.dataframe(disp_ch, use_container_width=True, hide_index=True)
 
                     # 채널명 세부
-                    st.markdown("### 채널명 세부 분석")
+
+
+                    S.slide_header("채널명 세부 분석", "Channel Name Breakdown")
                     ch_det = df_ch.groupby(["채널그룹", "채널명"]).agg(
                         유입수=("유입수", "sum"), 결제수=("결제수(마지막클릭)", "sum"),
                         결제금액=("결제금액(마지막클릭)", "sum"), 광고비=("광고비", "sum"),
@@ -676,8 +678,8 @@ with main_col:
 
                 # 키워드
                 if not df_kw.empty:
-                    st.markdown("---")
-                    st.markdown("### 키워드별 전환 분석")
+                    st.markdown("")
+                    S.slide_header("키워드별 전환 분석", "Keyword Conversion Analysis")
                     kw_agg = df_kw.groupby("키워드").agg(
                         결제수=("결제수(과거 14일간 기여도추정)", "sum"),
                         결제금액=("결제금액(과거 14일간 기여도추정)", "sum"),
@@ -690,8 +692,8 @@ with main_col:
 
                 # 상품별 성과
                 if not df_prod.empty:
-                    st.markdown("---")
-                    st.markdown("### 상품별 판매 성과")
+                    st.markdown("")
+                    S.slide_header("상품별 판매 성과", "Product Sales Performance")
                     prod_agg = df_prod.groupby("상품명").agg(
                         결제수=("결제수", "sum"), 결제금액=("결제금액", "sum"),
                     ).reset_index().sort_values("결제금액", ascending=False).head(20)
@@ -714,7 +716,7 @@ with main_col:
                     st.warning("선택한 기간에 데이터가 없습니다.")
                 else:
                     # 전체 요약 KPI
-                    st.markdown(f"### 쿠팡 키워드 요약 ({d_start} ~ {d_end})")
+                    S.slide_header(f"쿠팡 키워드 요약 ({d_start} ~ {d_end})", "Coupang Keyword Summary")
                     ck_cost = df_ck["광고비"].sum() * 1.1
                     ck_rev = df_ck["총 전환매출액(14일)"].sum()
                     ck_clicks = df_ck["클릭수"].sum()
@@ -733,7 +735,7 @@ with main_col:
                     k6.metric("전환율", f"{ck_cvr:.2f}%")
 
                     # 일별 추이
-                    st.markdown("### 일별 추이")
+                    S.slide_header("일별 추이", "Daily Trend")
                     ck_daily = df_ck.groupby(df_ck["날짜"].dt.date).agg(
                         광고비=("광고비", "sum"), 전환매출=("총 전환매출액(14일)", "sum"),
                     ).reset_index()
@@ -756,7 +758,7 @@ with main_col:
                     st.plotly_chart(fig_ck, use_container_width=True)
 
                     # 키워드 테이블
-                    st.markdown("### 키워드별 성과")
+                    S.slide_header("키워드별 성과", "Keyword Performance")
                     kw = dl.aggregate_kw_by_keyword(df_ck).sort_values("광고비(VAT)", ascending=False)
                     disp_kw = kw[["키워드", "노출수", "클릭수", "광고비(VAT)", "CTR(%)",
                                    "전환율(%)", "CPC", "총 판매수량(14일)", "총 전환매출액(14일)", "ROAS(%)"]].copy()
@@ -768,8 +770,8 @@ with main_col:
                     st.dataframe(styled, use_container_width=True, hide_index=True, height=400)
 
                     # 검색 vs 비검색
-                    st.markdown("---")
-                    st.markdown("### 검색 vs 비검색 영역")
+                    st.markdown("")
+                    S.slide_header("검색 vs 비검색 영역", "Search vs Non-Search")
                     area = dl.aggregate_kw_by_area(df_ck)
                     if not area.empty and "광고 노출 지면" in area.columns:
                         area_disp = area[["광고 노출 지면", "노출수", "클릭수", "광고비(VAT)",

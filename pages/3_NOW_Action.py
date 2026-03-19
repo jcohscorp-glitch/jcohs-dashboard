@@ -110,7 +110,7 @@ def _render_keyword_analysis(kw_df, prefix, margin_rate, min_clicks_stat):
 
 def _render_budget_sim(ad_info, prefix, margin_rate):
     """플랫폼별 예산 시뮬레이션 UI"""
-    st.markdown(f"### {ad_info['platform']} 예산 시뮬레이션")
+    S.slide_header(f"{ad_info['platform']} 예산 시뮬레이션", "Budget Simulation")
     change_pct = st.slider(
         f"예산 변경률", -50, 100, 0, step=5,
         key=f"p3_sim_{prefix}",
@@ -349,7 +349,7 @@ ai_contexts["상품 점검"] = _ctx_prod
 # ═══════════════════════════════════════════════════════════════
 #  페이지 레이아웃
 # ═══════════════════════════════════════════════════════════════
-st.title("⚡ NOW Action — 10억 달성 로드맵")
+S.page_header("NOW Action", "10억 달성을 위한 실시간 액션 플랜")
 
 # Executive Summary (탭 위)
 progress = min(cur_sales / TARGET, 1.0)
@@ -367,7 +367,7 @@ else:
     deficit = TARGET - projected
     st.warning(f"현재 추세대로면 **{projected/1e8:.1f}억** 예상 — **{deficit/1e8:.1f}억 부족**. 아래 액션을 즉시 실행하세요.")
 
-st.markdown("---")
+st.markdown("")
 
 # AI 패널 토글 + 레이아웃
 main_col, ai_col = chat.setup_layout("p3")
@@ -403,7 +403,7 @@ with main_col:
         if not actions:
             st.info("현재 데이터 기준 생성된 액션이 없습니다.")
         else:
-            st.markdown(f"### 오늘의 액션 리스트 ({len(actions)}건)")
+            S.slide_header(f"오늘의 액션 리스트 ({len(actions)}건)", "Today's Action List")
             for act in actions:
                 with st.container(border=True):
                     col_icon, col_content, col_impact = st.columns([1, 6, 2])
@@ -418,8 +418,8 @@ with main_col:
 
         # 채널 효율 매트릭스
         if not channel_matrix.empty:
-            st.markdown("---")
-            st.markdown("### 채널 효율 매트릭스")
+            st.markdown("")
+            S.slide_header("채널 효율 매트릭스", "Channel Efficiency Matrix")
             fig_bubble = px.scatter(
                 channel_matrix, x="최근2주 매출", y="성장률(%)",
                 size="최근2주 매출", color="성장률(%)", text="채널",
@@ -432,8 +432,8 @@ with main_col:
 
         # 키워드 전체 요약
         if not kw_result.empty:
-            st.markdown("---")
-            st.markdown("### 키워드 전체 요약")
+            st.markdown("")
+            S.slide_header("키워드 전체 요약", "Keyword Overview")
             summary = aa.group_summary(kw_result)
             bep_roas = (1 / margin_rate) * 100 if margin_rate > 0 else 0
             st.info(f"마진율 **{margin_rate*100:.0f}%** → 손익분기 ROAS = **{bep_roas:.0f}%**")
@@ -467,7 +467,7 @@ with main_col:
         else:
             # KPI
             if ad_coupang:
-                st.markdown("### 쿠팡 광고 현황")
+                S.slide_header("쿠팡 광고 현황", "Coupang Ad Performance")
                 ck1, ck2, ck3, ck4 = st.columns(4)
                 ck1.metric("광고비", f"{ad_coupang['cost']/1e6:.1f}백만")
                 ck2.metric("전환매출", f"{ad_coupang['revenue']/1e6:.1f}백만")
@@ -475,17 +475,17 @@ with main_col:
                 margin_profit = (ad_coupang['revenue'] * margin_rate) - ad_coupang['cost']
                 ck4.metric("순이익", f"{margin_profit/1e6:.1f}백만",
                            delta="흑자" if margin_profit > 0 else "적자")
-                st.markdown("---")
+                st.markdown("")
 
             # 키워드 그룹 분석
             if not kw_coupang.empty:
-                st.markdown("### 쿠팡 키워드 분석")
+                S.slide_header("쿠팡 키워드 분석", "Coupang Keyword Analysis")
                 _render_keyword_analysis(kw_coupang, "cpg", margin_rate, min_clicks_stat)
 
             # 캠페인 성과
             if not df_cpg.empty:
-                st.markdown("---")
-                st.markdown("### 쿠팡 캠페인 성과")
+                st.markdown("")
+                S.slide_header("쿠팡 캠페인 성과", "Coupang Campaign Performance")
                 cpg_camp = df_cpg.groupby("캠페인명").agg(
                     광고비=("광고비", "sum"), 전환매출=("총 전환매출액(1일)", "sum"),
                     클릭수=("클릭수", "sum"), 노출수=("노출수", "sum"),
@@ -497,8 +497,8 @@ with main_col:
 
             # ── 캠페인별 꼼꼼한 액션 ──
             if not kw_coupang.empty and "캠페인명" in kw_coupang.columns:
-                st.markdown("---")
-                st.markdown("### 📋 캠페인별 액션 플랜")
+                st.markdown("")
+                S.slide_header("캠페인별 액션 플랜", "Campaign Action Plan")
                 st.caption("각 캠페인의 키워드 분석 결과를 기반으로 자동 생성된 구체적 액션입니다.")
                 camp_actions = ae.analyze_campaign_actions(kw_coupang, campaign_col="캠페인명", margin_rate=margin_rate)
                 for ca in camp_actions:
@@ -522,8 +522,8 @@ with main_col:
                                 st.code(", ".join(act['keywords'][:10]), language=None)
 
             # ── 심화 분석 ──
-            st.markdown("---")
-            st.markdown("### 쿠팡 심화 분석")
+            st.markdown("")
+            S.slide_header("쿠팡 심화 분석", "Coupang Deep Analysis")
             # 캐시 키 계산
             _cpg_hash = _quick_hash(df_ckw) + _quick_hash(kw_coupang) + str(min_clicks_stat)
             if st.session_state.get("_cpg_hash") != _cpg_hash:
@@ -759,7 +759,7 @@ with main_col:
 
             # 예산 시뮬레이션
             if ad_coupang:
-                st.markdown("---")
+                st.markdown("")
                 _render_budget_sim(ad_coupang, "cpg", margin_rate)
 
     # ═══════════════════════════════════════════════════════════
@@ -826,7 +826,7 @@ with main_col:
             summary = analysis["summary"]
 
             # ── KPI 요약 ──
-            st.markdown(f"### {acc['name']} 네이버SA 광고 현황")
+            S.slide_header(f"{acc['name']} 네이버SA 광고 현황", "Naver SA Ad Performance")
             nk1, nk2, nk3, nk4, nk5 = st.columns(5)
             nk1.metric("총 광고비", f"{summary['총 광고비']/1e6:.1f}백만")
             nk2.metric("전환매출", f"{summary['총 전환매출']/1e6:.1f}백만")
@@ -834,7 +834,7 @@ with main_col:
             nk4.metric("순이익", f"{summary['총 순이익']/1e6:.1f}백만",
                         delta="흑자" if summary["총 순이익"] > 0 else "적자")
             nk5.metric("키워드", f"{summary['총 키워드 수']}개")
-            st.markdown("---")
+            st.markdown("")
 
             # ── 서브탭 ──
             nsub1, nsub2, nsub3, nsub4, nsub5, nsub6, nsub7, nsub8, nsub9, nsub10, nsub11 = st.tabs([
@@ -871,7 +871,7 @@ with main_col:
                             st.metric("순이익", f"{profit:,.0f}원")
 
                 # 품질지수 분포
-                st.markdown("---")
+                st.markdown("")
                 qi_col1, qi_col2 = st.columns([1, 1])
                 with qi_col1:
                     st.markdown("#### 품질지수 분포")
@@ -967,7 +967,7 @@ with main_col:
                         with tc[i % 5]:
                             st.metric(label, f"{cnt}개")
 
-                    st.markdown("---")
+                    st.markdown("")
 
                     # 급상승 키워드
                     rising = trends[trends["트렌드"].str.contains("급상승")].sort_values(
@@ -1041,7 +1041,7 @@ with main_col:
 
                     # ── 캠페인별 꼼꼼한 액션 ──
                     if not nsa_keywords.empty and "캠페인" in nsa_keywords.columns:
-                        st.markdown("---")
+                        st.markdown("")
                         st.markdown("#### 📋 캠페인별 액션 플랜")
                         st.caption("각 캠페인의 키워드를 분석하여 구체적 액션을 자동 도출합니다.")
                         nsa_camp_actions = ae.analyze_campaign_actions(nsa_keywords, campaign_col="캠페인", margin_rate=margin_rate)
@@ -1105,7 +1105,7 @@ with main_col:
                     rt5.metric("전환매출", f"{t_rev:,.0f}원")
                     rt6.metric("ROAS", f"{t_roas:.0f}%")
 
-                    st.markdown("---")
+                    st.markdown("")
                     st.markdown("#### 캠페인별 오늘 실시간 성과")
                     rt_cols = [c for c in [
                         "캠페인명", "노출수", "클릭수", "광고비(VAT포함)",
@@ -1122,7 +1122,7 @@ with main_col:
                         avg_daily_cost = nsa_camps["광고비(VAT포함)"].sum() / days_in_range
                         avg_daily_rev = nsa_camps["전환매출액"].sum() / days_in_range if "전환매출액" in nsa_camps.columns else 0
 
-                        st.markdown("---")
+                        st.markdown("")
                         st.markdown("#### 기간 평균 대비 오늘 비교")
                         cmp1, cmp2, cmp3 = st.columns(3)
                         cost_diff = ((t_cost / avg_daily_cost - 1) * 100) if avg_daily_cost > 0 else 0
@@ -1168,7 +1168,7 @@ with main_col:
                 bm3.metric("📌 예산잠금", f"{budget_lock:,.0f}원")
 
                 # 잔액 알림 설정
-                st.markdown("---")
+                st.markdown("")
                 alert_threshold = st.number_input(
                     "⚠️ 잔액 알림 기준 (원)", value=500000, step=100000,
                     help="비즈머니가 이 금액 이하이면 경고 표시",
@@ -1202,7 +1202,7 @@ with main_col:
                     st.info("비즈머니 잔액 API를 지원하지 않는 계정이거나, 조회 권한이 없습니다.")
 
                 # 캠페인 예산 테이블
-                st.markdown("---")
+                st.markdown("")
                 st.markdown("#### 📋 캠페인별 일예산 설정 현황")
                 if camp_budgets:
                     budget_df = pd.DataFrame(camp_budgets)
@@ -1547,7 +1547,7 @@ with main_col:
     #  탭 4: 브랜드 점검
     # ═══════════════════════════════════════════════════════════
     with tab4:
-        st.markdown("### 브랜드별 매출 현황")
+        S.slide_header("브랜드별 매출 현황", "Brand Sales Overview")
         if brand_cur.empty:
             st.warning("브랜드 데이터가 없습니다.")
         else:
@@ -1559,7 +1559,7 @@ with main_col:
                     st.metric(row["브랜드"], f"{row['매출']/1e6:.0f}백만",
                               delta=f"마진율 {row.get('마진', 0) / max(row['매출'], 1) * 100:.0f}%")
 
-            st.markdown("---")
+            st.markdown("")
 
             # 브랜드 바 차트
             fig_brand = px.bar(
@@ -1573,8 +1573,8 @@ with main_col:
 
             # YoY 비교
             if not df_25.empty:
-                st.markdown("---")
-                st.markdown("### 전년 대비 브랜드 성장")
+                st.markdown("")
+                S.slide_header("전년 대비 브랜드 성장", "YoY Brand Growth")
                 df_25_ytd = df_25[df_25["주문일시"].dt.month <= cur_month]
                 brand_25 = df_25_ytd.groupby("브랜드")["총 판매금액"].sum().reset_index()
                 brand_25.rename(columns={"총 판매금액": "25년 매출"}, inplace=True)
@@ -1601,8 +1601,8 @@ with main_col:
                 st.dataframe(disp_bc, use_container_width=True, hide_index=True)
 
             # 브랜드 마진 분석
-            st.markdown("---")
-            st.markdown("### 브랜드별 마진 분석")
+            st.markdown("")
+            S.slide_header("브랜드별 마진 분석", "Brand Margin Analysis")
             brand_margin = brand_cur.copy()
             brand_margin["마진율(%)"] = (brand_margin["마진"] / brand_margin["매출"].replace(0, 1) * 100).round(1)
             fig_bm = go.Figure()
@@ -1621,7 +1621,7 @@ with main_col:
             st.warning("채널 데이터가 없습니다.")
         else:
             # 버블 차트
-            st.markdown("### 채널별 매출 vs 성장률")
+            S.slide_header("채널별 매출 vs 성장률", "Channel Sales vs Growth")
             fig_ch = px.scatter(
                 channel_matrix, x="최근2주 매출", y="성장률(%)",
                 size="최근2주 매출", color="성장률(%)", text="채널",
@@ -1635,7 +1635,7 @@ with main_col:
             # 성장/하락 채널
             col_grow, col_dec = st.columns(2)
             with col_grow:
-                st.markdown("### 📈 성장 채널 (>20%)")
+                S.slide_header("성장 채널 (>20%)", "Growing Channels")
                 growing = channel_matrix[channel_matrix["성장률(%)"] > 20].sort_values(
                     "최근2주 매출", ascending=False)
                 if growing.empty:
@@ -1648,7 +1648,7 @@ with main_col:
                     st.dataframe(disp_g, use_container_width=True, hide_index=True)
 
             with col_dec:
-                st.markdown("### 📉 주의 채널 (<-20%)")
+                S.slide_header("주의 채널 (<-20%)", "Declining Channels")
                 declining = channel_matrix[channel_matrix["성장률(%)"] < -20].sort_values(
                     "최근2주 매출", ascending=False)
                 if declining.empty:
@@ -1661,11 +1661,11 @@ with main_col:
                     st.dataframe(disp_d, use_container_width=True, hide_index=True)
 
         # 캠페인 기회/주의
-        st.markdown("---")
+        st.markdown("")
         if not ad_opportunities.empty:
             col_opp, col_warn = st.columns(2)
             with col_opp:
-                st.markdown("### 성장 기회 캠페인")
+                S.slide_header("성장 기회 캠페인", "Growth Opportunity Campaigns")
                 median_cost = ad_opportunities["광고비"].median()
                 high_roas = ad_opportunities[
                     (ad_opportunities["ROAS(%)"] >= 300) & (ad_opportunities["광고비"] <= median_cost)
@@ -1681,7 +1681,7 @@ with main_col:
                     st.info("ROAS 높고 예산 적은 캠페인 → 예산 증액으로 매출 극대화!")
 
             with col_warn:
-                st.markdown("### 주의 캠페인")
+                S.slide_header("주의 캠페인", "Underperforming Campaigns")
                 low_roas = ad_opportunities[
                     (ad_opportunities["ROAS(%)"] < 100) & (ad_opportunities["광고비"] > 0)
                 ].sort_values("ROAS(%)", ascending=True).head(10)
@@ -1699,7 +1699,7 @@ with main_col:
     #  탭 6: 상품 점검
     # ═══════════════════════════════════════════════════════════
     with tab6:
-        st.markdown("### 이번 달 상품 매출 현황")
+        S.slide_header("이번 달 상품 매출 현황", "Monthly Product Sales")
         if product_data.empty:
             st.warning("상품 데이터가 없습니다.")
         else:
@@ -1709,10 +1709,10 @@ with main_col:
             pk2.metric("Top1 상품", product_data.iloc[0]["상품명"][:20])
             pk3.metric("Top1 매출", f"{product_data.iloc[0]['매출']/1e6:.0f}백만")
 
-            st.markdown("---")
+            st.markdown("")
 
             # Top 20 상품 바 차트
-            st.markdown("### 상품 매출 Top 20")
+            S.slide_header("상품 매출 Top 20", "Top 20 Products by Revenue")
             top20 = product_data.head(20)
             fig_prod = px.bar(
                 top20, x="매출", y="상품명", orientation="h",
@@ -1727,7 +1727,7 @@ with main_col:
             st.plotly_chart(fig_prod, use_container_width=True)
 
             # 상품 상세 테이블
-            st.markdown("### 상품 상세 (매출순)")
+            S.slide_header("상품 상세 (매출순)", "Product Details by Revenue")
             disp_prod = product_data.head(30).copy()
             disp_prod["매출"] = disp_prod["매출"].apply(lambda x: f"{x:,.0f}")
             disp_prod["마진"] = disp_prod["마진"].apply(lambda x: f"{x:,.0f}")
@@ -1735,8 +1735,8 @@ with main_col:
             st.dataframe(disp_prod, use_container_width=True, hide_index=True)
 
             # 채널별 상품 분석
-            st.markdown("---")
-            st.markdown("### 채널별 Top 상품")
+            st.markdown("")
+            S.slide_header("채널별 Top 상품", "Top Products by Channel")
             top_channels = df_cur.groupby("외부몰/벤더명")["총 판매금액"].sum().nlargest(5).index.tolist()
             for ch_name in top_channels:
                 with st.expander(f"📦 {ch_name}"):
@@ -1748,8 +1748,8 @@ with main_col:
                     st.dataframe(ch_prods, use_container_width=True, hide_index=True)
 
             # 마진 4분면
-            st.markdown("---")
-            st.markdown("### 상품 4분면 (매출 vs 마진율)")
+            st.markdown("")
+            S.slide_header("상품 4분면 (매출 vs 마진율)", "Product Quadrant: Revenue vs Margin")
             prod_scatter = product_data[product_data["매출"] > 0].head(50)
             if not prod_scatter.empty:
                 fig_ps = px.scatter(

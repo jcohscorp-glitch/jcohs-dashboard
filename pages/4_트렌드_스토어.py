@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """4) 트렌드 & 스토어 — 네이버 데이터랩 + 커머스 API"""
 
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -10,9 +13,11 @@ from datetime import datetime, timedelta
 import naver_datalab as ndl
 import naver_commerce as ncom
 import coupang_commerce as cpcom
+import styles as S
 
 st.set_page_config(page_title="트렌드 & 스토어", page_icon="📊", layout="wide")
-st.title("📊 트렌드 & 스토어 API")
+S.inject_css()
+S.page_header("트렌드 & 스토어", "네이버 데이터랩 · 스마트스토어 · 쿠팡 API")
 
 # ─── 메인 탭 ──────────────────────────────────────────────────
 tabs = ["🔍 네이버 데이터랩", "🏪 스마트스토어"]
@@ -26,13 +31,13 @@ tab_coupang = extra_tabs[0] if extra_tabs else None
 #  TAB 1: 네이버 데이터랩
 # ═══════════════════════════════════════════════════════════════
 with tab_trend:
-    st.subheader("🔍 네이버 데이터랩")
+    S.slide_header("네이버 데이터랩", "Naver DataLab Trends")
 
     trend_sub = st.tabs(["📈 검색어 트렌드", "🛒 쇼핑인사이트", "👥 타겟 분석"])
 
     # ── 검색어 트렌드 ──────────────────────────────────────────
     with trend_sub[0]:
-        st.markdown("#### 키워드 검색량 추이 비교")
+        S.slide_header("키워드 검색량 추이 비교", "Keyword Search Volume Comparison")
 
         col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
@@ -79,7 +84,7 @@ with tab_trend:
                     st.plotly_chart(fig, use_container_width=True)
 
                     # 최근 트렌드 요약
-                    st.markdown("##### 최근 트렌드 요약")
+                    S.slide_header("최근 트렌드 요약", "Recent Trend Summary")
                     recent = df.groupby("키워드")["검색비율"].agg(["mean", "last"]).round(1)
                     recent.columns = ["평균 검색비율", "최근 검색비율"]
                     recent = recent.sort_values("최근 검색비율", ascending=False)
@@ -87,7 +92,7 @@ with tab_trend:
 
     # ── 쇼핑인사이트 ──────────────────────────────────────────
     with trend_sub[1]:
-        st.markdown("#### 쇼핑 키워드 클릭 트렌드")
+        S.slide_header("쇼핑 키워드 클릭 트렌드", "Shopping Keyword Click Trends")
         st.caption("네이버 쇼핑에서 특정 키워드가 얼마나 클릭되는지 추이를 봅니다.")
 
         col1, col2 = st.columns([2, 1])
@@ -144,7 +149,7 @@ with tab_trend:
 
     # ── 타겟 분석 ──────────────────────────────────────────────
     with trend_sub[2]:
-        st.markdown("#### 키워드 타겟 분석 (기기/성별/연령)")
+        S.slide_header("키워드 타겟 분석", "Target Analysis by Device / Gender / Age")
         st.caption("특정 키워드의 검색 사용자 프로필을 분석합니다.")
 
         col1, col2 = st.columns(2)
@@ -177,7 +182,7 @@ with tab_trend:
             col_d, col_g, col_a = st.columns(3)
 
             with col_d:
-                st.markdown("##### 기기별")
+                S.slide_header("기기별", "By Device")
                 if not df_device.empty:
                     fig = px.line(df_device, x="날짜", y="비율", color="기기",
                                   title="PC vs 모바일")
@@ -187,7 +192,7 @@ with tab_trend:
                     st.info("데이터 없음")
 
             with col_g:
-                st.markdown("##### 성별")
+                S.slide_header("성별", "By Gender")
                 if not df_gender.empty:
                     fig = px.line(df_gender, x="날짜", y="비율", color="성별",
                                   title="남성 vs 여성")
@@ -197,7 +202,7 @@ with tab_trend:
                     st.info("데이터 없음")
 
             with col_a:
-                st.markdown("##### 연령별")
+                S.slide_header("연령별", "By Age Group")
                 if not df_age.empty:
                     fig = px.line(df_age, x="날짜", y="비율", color="연령",
                                   title="연령대별 관심도")
@@ -211,7 +216,7 @@ with tab_trend:
 #  TAB 2: 스마트스토어 (커머스 API)
 # ═══════════════════════════════════════════════════════════════
 with tab_store:
-    st.subheader("🏪 스마트스토어 (커머스 API)")
+    S.slide_header("스마트스토어 현황", "Smart Store Dashboard")
 
     stores = ncom.get_store_list()
     if not stores:
@@ -234,7 +239,7 @@ with tab_store:
 
     # ── 주문 현황 ──────────────────────────────────────────────
     with store_sub[0]:
-        st.markdown("#### 스토어별 주문 조회")
+        S.slide_header("스토어별 주문 조회", "Orders by Store")
 
         col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
@@ -321,7 +326,7 @@ with tab_store:
 
     # ── 상품 현황 ──────────────────────────────────────────────
     with store_sub[1]:
-        st.markdown("#### 스토어별 상품 현황")
+        S.slide_header("스토어별 상품 현황", "Products by Store")
 
         if st.button("🏷️ 전체 상품 조회", key="btn_products"):
             all_products = []
@@ -362,7 +367,7 @@ with tab_store:
 
     # ── 스토어 비교 ────────────────────────────────────────────
     with store_sub[2]:
-        st.markdown("#### 스토어 성과 비교")
+        S.slide_header("스토어 성과 비교", "Store Performance Comparison")
         st.caption("최근 7일 주문 기준으로 스토어를 비교합니다.")
 
         if st.button("📊 스토어 비교 실행", key="btn_compare"):
@@ -409,7 +414,7 @@ with tab_store:
 # ═══════════════════════════════════════════════════════════════
 if tab_coupang is not None:
     with tab_coupang:
-        st.subheader("🟠 쿠팡 스토어 (Open API)")
+        S.slide_header("쿠팡 스토어", "Coupang Store Dashboard")
 
         cp_stores = cpcom.get_store_list()
         if not cp_stores:
@@ -422,7 +427,7 @@ if tab_coupang is not None:
 
         # ── 쿠팡 주문 현황 ────────────────────────────────────────
         with cp_sub[0]:
-            st.markdown("#### 쿠팡 주문 조회")
+            S.slide_header("쿠팡 주문 조회", "Coupang Orders")
 
             col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
             with col1:
@@ -516,7 +521,7 @@ if tab_coupang is not None:
 
         # ── 쿠팡 매출 내역 ────────────────────────────────────────
         with cp_sub[1]:
-            st.markdown("#### 쿠팡 매출 내역 (구매확정 기준)")
+            S.slide_header("쿠팡 매출 내역", "Coupang Sales (Confirmed)")
 
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
@@ -596,7 +601,7 @@ if tab_coupang is not None:
 
         # ── 쿠팡 상품 현황 ────────────────────────────────────────
         with cp_sub[2]:
-            st.markdown("#### 쿠팡 상품 목록")
+            S.slide_header("쿠팡 상품 목록", "Coupang Product Catalog")
 
             cp_prod_stores = st.multiselect(
                 "스토어 선택", cp_store_names, default=cp_store_names,
@@ -638,7 +643,7 @@ if tab_coupang is not None:
 
         # ── 쿠팡 스토어 비교 ──────────────────────────────────────
         with cp_sub[3]:
-            st.markdown("#### 쿠팡 스토어 성과 비교")
+            S.slide_header("쿠팡 스토어 성과 비교", "Coupang Store Comparison")
             st.caption("최근 7일 주문 기준으로 드보르/제이코스를 비교합니다.")
 
             if st.button("📊 쿠팡 스토어 비교", key="btn_cp_compare"):

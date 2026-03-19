@@ -20,7 +20,7 @@ import ai_chat as chat
 st.set_page_config(page_title="미래 예측", page_icon="🔮", layout="wide")
 S.inject_css()
 TPL = S.TPL
-st.title("🔮 미래 예측")
+S.page_header("미래 예측", "시나리오 기반 월말 매출 예측")
 
 TARGET = config.MONTHLY_TARGET
 
@@ -154,10 +154,10 @@ with main_col:
             c3.metric("필요 일평균", f"{scenarios['needed_daily']/1e6:.0f}백만")
             c4.metric("목표 갭", f"{scenarios['gap']/1e8:.2f}억" if scenarios['gap'] > 0 else "달성!")
 
-            st.markdown("---")
+            st.markdown("")
 
             # 다중 시나리오 게이지 (2x2)
-            st.markdown("### 시나리오별 월말 예측")
+            S.slide_header("시나리오별 월말 예측", "Scenario-Based Month-End Forecast")
             fig_gauges = make_subplots(
                 rows=2, cols=2,
                 specs=[[{"type": "indicator"}, {"type": "indicator"}],
@@ -192,7 +192,7 @@ with main_col:
             st.plotly_chart(fig_gauges, use_container_width=True)
 
             # 시나리오 비교 바 차트
-            st.markdown("### 시나리오 비교")
+            S.slide_header("시나리오 비교", "Scenario Comparison")
             scenario_df = pd.DataFrame([
                 {"시나리오": "비관 (최저 롤링)", "예상매출": scenarios["proj_pessimistic"]},
                 {"시나리오": "기본 (전체 일평균)", "예상매출": scenarios["proj_base"]},
@@ -223,10 +223,10 @@ with main_col:
             else:
                 st.error("모든 시나리오에서 목표 미달. 즉시 매출 부스트 필요.")
 
-            st.markdown("---")
+            st.markdown("")
 
             # 일별 매출 시계열
-            st.markdown("### 일별 매출 추이")
+            S.slide_header("일별 매출 추이", "Daily Sales Trend")
             daily = scenarios["daily_series"]
             daily_df = daily.reset_index()
             daily_df.columns = ["날짜", "매출"]
@@ -243,7 +243,7 @@ with main_col:
             st.plotly_chart(fig_daily, use_container_width=True)
 
             # 주중/주말 분석
-            st.markdown("### 주중 vs 주말 일평균")
+            S.slide_header("주중 vs 주말 일평균", "Weekday vs Weekend Daily Average")
             cw1, cw2, cw3 = st.columns(3)
             cw1.metric("주중 일평균", f"{scenarios['avg_weekday']/1e6:.0f}백만")
             cw2.metric("주말 일평균", f"{scenarios['avg_weekend']/1e6:.0f}백만")
@@ -278,7 +278,7 @@ with main_col:
             st.warning("채널 기여도 데이터가 없습니다.")
         else:
             # 채널 기여 바 차트
-            st.markdown("### 채널별 월말 예상 매출")
+            S.slide_header("채널별 월말 예상 매출", "Estimated Month-End Sales by Channel")
             fig_ch = px.bar(
                 ch_forecast.sort_values("월말예상", ascending=True),
                 x="월말예상", y="채널", orientation="h",
@@ -295,14 +295,14 @@ with main_col:
             # 기여율 파이
             col_pie, col_target = st.columns(2)
             with col_pie:
-                st.markdown("### 기여율 (%)")
+                S.slide_header("기여율", "Contribution Rate (%)")
                 fig_pie = px.pie(ch_forecast, values="월말예상", names="채널", hole=0.4)
                 fig_pie.update_layout(template=TPL, height=400)
                 fig_pie.update_traces(textposition="inside", textinfo="label+percent")
                 st.plotly_chart(fig_pie, use_container_width=True)
 
             with col_target:
-                st.markdown("### 목표 대비 기여도")
+                S.slide_header("목표 대비 기여도", "Contribution vs Target")
                 fig_tgt = go.Figure()
                 ch_sorted = ch_forecast.sort_values("월말예상", ascending=True)
                 fig_tgt.add_trace(go.Bar(
@@ -319,17 +319,19 @@ with main_col:
                 st.plotly_chart(fig_tgt, use_container_width=True)
 
             # 채널 상세 테이블
-            st.markdown("### 채널별 상세")
+            S.slide_header("채널별 상세", "Channel Details")
             disp_ch = ch_forecast.copy()
             for c in ["현재매출", "최근일평균", "월말예상"]:
                 if c in disp_ch.columns:
                     disp_ch[c] = disp_ch[c].apply(lambda x: f"{x:,.0f}")
             st.dataframe(disp_ch, use_container_width=True, hide_index=True)
 
-        st.markdown("---")
+
+
+        st.markdown("")
 
         # 모멘텀 지표
-        st.markdown("### 매출 모멘텀")
+        S.slide_header("매출 모멘텀", "Sales Momentum")
         momentum = pred.momentum_indicator(df_26, sel_year, sel_mon)
         if momentum is None:
             st.warning("모멘텀 데이터가 없습니다.")
@@ -372,7 +374,7 @@ with main_col:
     #  탭 3: 광고 예산 시뮬레이터
     # ═══════════════════════════════════════════════════════════════
     with tab3:
-        st.markdown("### 광고 예산 변경 시뮬레이션")
+        S.slide_header("광고 예산 시뮬레이터", "Ad Budget Simulator")
         st.caption("각 플랫폼의 예산을 조정하면 예상 매출/순이익 변화를 확인할 수 있습니다.")
 
         # 현재 광고 데이터 취합
@@ -396,7 +398,7 @@ with main_col:
             st.warning("광고 데이터가 없습니다.")
         else:
             # 현재 상태 표시
-            st.markdown("#### 현재 광고 현황")
+            S.slide_header("현재 광고 현황", "Current Ad Status")
             current_df = pd.DataFrame(ad_summary)
             disp_cur = current_df.copy()
             disp_cur.columns = ["플랫폼", "광고비", "전환매출", "ROAS(%)"]
@@ -405,8 +407,8 @@ with main_col:
             disp_cur["ROAS(%)"] = disp_cur["ROAS(%)"].apply(lambda x: f"{x:.0f}")
             st.dataframe(disp_cur, use_container_width=True, hide_index=True)
 
-            st.markdown("---")
-            st.markdown("#### 예산 변경 시뮬레이션")
+            st.markdown("")
+            S.slide_header("예산 변경 시뮬레이션", "Budget Change Simulation")
 
             # 슬라이더
             changes = {}
@@ -441,7 +443,7 @@ with main_col:
             )
             profit_change = total_new_profit - current_total_profit
 
-            st.markdown("#### 시뮬레이션 결과")
+            S.slide_header("시뮬레이션 결과", "Simulation Results")
             r1, r2, r3, r4 = st.columns(4)
             r1.metric("추가 투자금액", f"{total_add_cost/1e6:+.0f}백만")
             r2.metric("추가 예상매출", f"{total_add_rev/1e6:+.0f}백만")
@@ -482,7 +484,7 @@ with main_col:
             st.plotly_chart(fig_sim, use_container_width=True)
 
             # 플랫폼별 상세
-            st.markdown("#### 플랫폼별 상세 결과")
+            S.slide_header("플랫폼별 상세 결과", "Detailed Results by Platform")
             detail_rows = []
             for sim in sim_results:
                 detail_rows.append({

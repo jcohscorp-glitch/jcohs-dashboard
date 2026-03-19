@@ -32,7 +32,7 @@ with st.sidebar:
     st.info("📌 좌측 메뉴에서 페이지를 선택하세요")
 
 # ── 타이틀 ───────────────────────────────────────────────────
-st.title("📊 JCOHS 월 매출 10억 만들기")
+S.page_header("JCOHS 월 매출 10억 만들기", "커머스 통합 매출 관리 대시보드")
 
 # ── 실시간 요약 KPI ──────────────────────────────────────────
 TARGET = config.MONTHLY_TARGET
@@ -59,10 +59,10 @@ try:
 except Exception:
     pass
 
-st.markdown("---")
+st.markdown("")
 
 # ── 3 필러 네비게이션 ────────────────────────────────────────
-st.markdown("### 대시보드 3대 필러")
+S.slide_header("대시보드 3대 필러", "Dashboard 3 Pillars")
 
 col1, col2, col3 = st.columns(3)
 
@@ -102,9 +102,9 @@ with col3:
         """)
         st.page_link("pages/3_NOW_Action.py", label="⚡ NOW Action 보기", use_container_width=True)
 
-st.markdown("---")
+st.markdown("")
+S.slide_header("대시보드 구성", "Dashboard Structure")
 st.markdown("""
-### 대시보드 구성
 | 필러 | 핵심 질문 | 주요 기능 |
 |------|-----------|-----------|
 | **📊 현재 현황** | 지금 어디까지 왔나? | 목표 달성, 매출/광고/채널 분석 통합 |
