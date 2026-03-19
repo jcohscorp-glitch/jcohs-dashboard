@@ -6,6 +6,8 @@ import hashlib
 import requests
 import pandas as pd
 import streamlit as st
+import json
+import base64
 from time import gmtime, strftime
 from datetime import datetime, timedelta
 
@@ -22,12 +24,24 @@ COUPANG_STORE_KEYS = [
 ]
 
 
+@st.cache_data(ttl=3600)
+def _load_extra_creds() -> dict:
+    """EXTRA_CREDS (base64 JSON) 디코딩. 없으면 빈 dict."""
+    try:
+        b64 = st.secrets["EXTRA_CREDS"].replace("\n", "").replace(" ", "")
+        return json.loads(base64.b64decode(b64))
+    except Exception:
+        return {}
+
+
 def _get_store_creds(store_key: str) -> dict | None:
-    """스토어별 인증정보 읽기 (secrets.toml)"""
+    """스토어별 인증정보 읽기 (TOML 섹션 → EXTRA_CREDS 순)"""
     try:
         return dict(st.secrets[store_key])
     except Exception:
-        return None
+        pass
+    extra = _load_extra_creds()
+    return extra.get(store_key)
 
 
 def get_store_list() -> list[dict]:
