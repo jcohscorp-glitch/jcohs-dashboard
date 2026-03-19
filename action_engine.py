@@ -342,7 +342,7 @@ def analyze_channel_efficiency(df_channel, df_ad_summary=None):
         return pd.DataFrame()
 
     # 채널별 집계
-    needed_cols = ["유입수", "결제수(마지막클릭)", "결제금액(마지막클릭)", "광고비"]
+    needed_cols = ["채널", "유입수", "결제수(마지막클릭)", "결제금액(마지막클릭)", "광고비"]
     for col in needed_cols:
         if col not in df_channel.columns:
             return pd.DataFrame()

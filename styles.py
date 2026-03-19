@@ -269,23 +269,16 @@ def inject_css():
 def page_header(title: str, subtitle: str = "", badge_text: str = "JCOHS Corporation"):
     """페이지 상단 표지 스타일 헤더"""
     _slide_counter["n"] = 0  # 슬라이드 번호 리셋
-    badge_html = f"""
-        <div style="font-size:0.75rem; font-weight:700; color:#3B82F6;
-             letter-spacing:0.15em; text-transform:uppercase; margin-bottom:8px;">
-            {badge_text}
-        </div>
-    """ if badge_text else ""
-    sub_html = f'<div style="font-size:0.92rem; color:#64748B; margin-top:4px;">{subtitle}</div>' if subtitle else ""
-    st.markdown(f"""
-    <div style="text-align:center; padding:1.5rem 0 2rem;
-         background:linear-gradient(135deg, #EFF6FF 0%, #FFFFFF 50%, #F0FDF4 100%);
-         border-radius:20px; margin-bottom:24px;
-         box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);">
-        {badge_html}
-        <div style="font-size:2.2rem; font-weight:800; color:#1E293B;">{title}</div>
-        {sub_html}
-    </div>
-    """, unsafe_allow_html=True)
+    badge_html = f'<div style="font-size:0.75rem;font-weight:700;color:#3B82F6;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px;">{badge_text}</div>' if badge_text else ""
+    sub_html = f'<div style="font-size:0.92rem;color:#64748B;margin-top:4px;">{subtitle}</div>' if subtitle else ""
+    st.markdown(
+        f'<div style="text-align:center;padding:1.5rem 0 2rem;background:linear-gradient(135deg,#EFF6FF 0%,#FFFFFF 50%,#F0FDF4 100%);border-radius:20px;margin-bottom:24px;box-shadow:0 1px 3px rgba(0,0,0,0.04),0 4px 16px rgba(0,0,0,0.04);">'
+        f'{badge_html}'
+        f'<div style="font-size:2.2rem;font-weight:800;color:#1E293B;">{title}</div>'
+        f'{sub_html}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def slide_header(title: str, subtitle: str = ""):
@@ -293,24 +286,24 @@ def slide_header(title: str, subtitle: str = ""):
     _slide_counter["n"] += 1
     n = _slide_counter["n"]
     sub = f'<div class="slide-subtitle">{subtitle}</div>' if subtitle else ""
-    st.markdown(f"""
-    <div style="margin-bottom:16px;">
-        <span class="slide-num">{n}</span>
-        <span class="slide-title">{title}</span>
-        {sub}
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="margin-bottom:16px;">'
+        f'<span class="slide-num">{n}</span>'
+        f'<span class="slide-title">{title}</span>'
+        f'{sub}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def styled_header(icon: str, title: str, subtitle: str = ""):
     """섹션 헤더 (기존 호환)"""
-    sub = f'<p style="color:#94A3B8; font-size:0.85rem; margin:4px 0 0 0;">{subtitle}</p>' if subtitle else ""
-    st.markdown(f"""
-    <div style="margin-bottom:1rem;">
-        <h3 style="margin:0; color:#1E293B;">{icon} {title}</h3>
-        {sub}
-    </div>
-    """, unsafe_allow_html=True)
+    sub = f'<p style="color:#94A3B8;font-size:0.85rem;margin:4px 0 0 0;">{subtitle}</p>' if subtitle else ""
+    st.markdown(
+        f'<div style="margin-bottom:1rem;">'
+        f'<h3 style="margin:0;color:#1E293B;">{icon} {title}</h3>'
+        f'{sub}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def badge(text: str, variant: str = "default"):
