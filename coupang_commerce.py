@@ -255,8 +255,11 @@ def get_sales(
 
     vendor_id = creds["vendor_id"]
 
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     if not end_date:
-        end_date = datetime.now().strftime("%Y-%m-%d")
+        end_date = yesterday
+    elif end_date > yesterday:
+        end_date = yesterday
     if not start_date:
         start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 
