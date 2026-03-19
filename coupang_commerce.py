@@ -110,19 +110,18 @@ def _coupang_request(store_key: str, method: str, path: str,
     try:
         if USE_PROXY:
             # ── 프록시 경유 (Cloud 환경) ──
-            from urllib.parse import quote
-            proxy_params = f"method={method}&path={quote(full_path, safe='')}"
-            proxy_url = f"{PROXY_URL}?{proxy_params}"
             proxy_headers = {
                 "X-Proxy-Auth": PROXY_SECRET,
                 "X-Coupang-Auth": authorization,
+                "X-Cp-Method": method,
+                "X-Cp-Path": full_path,
                 "Content-Type": "application/json;charset=UTF-8",
             }
             if method in ("POST", "PUT"):
-                resp = requests.post(proxy_url, headers=proxy_headers,
+                resp = requests.post(PROXY_URL, headers=proxy_headers,
                                      json=json_body or {}, timeout=60)
             else:
-                resp = requests.get(proxy_url, headers=proxy_headers, timeout=60)
+                resp = requests.post(PROXY_URL, headers=proxy_headers, timeout=60)
         else:
             # ── 직접 호출 (로컬 환경) ──
             headers = {

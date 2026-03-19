@@ -18,15 +18,15 @@ If authHeader <> PROXY_SECRET Then
     Response.End
 End If
 
-' -- 파라미터 --
+' -- 파라미터 (헤더에서 읽기) --
 Dim targetMethod, targetPath, targetAuth
-targetMethod = UCase(Request.QueryString("method"))
-targetPath   = Request.QueryString("path")
+targetMethod = Request.ServerVariables("HTTP_X_CP_METHOD")
+targetPath   = Request.ServerVariables("HTTP_X_CP_PATH")
 targetAuth   = Request.ServerVariables("HTTP_X_COUPANG_AUTH")
 
 If targetMethod = "" Then targetMethod = "GET"
 If targetPath = "" Then
-    Response.Write "{""proxy_status"":400,""proxy_error"":""path required""}"
+    Response.Write "{""proxy_status"":400,""proxy_error"":""X-Cp-Path header required""}"
     Response.End
 End If
 
@@ -62,6 +62,7 @@ http.Open targetMethod, targetUrl, False
 http.SetRequestHeader "Authorization", targetAuth
 http.SetRequestHeader "Content-Type", "application/json;charset=UTF-8"
 http.SetRequestHeader "X-Requested-By", "JCOHS-Dashboard"
+http.SetRequestHeader "X-EXTENDED-TIMEOUT", "90000"
 
 If targetMethod = "POST" Or targetMethod = "PUT" Then
     http.Send targetBody
@@ -75,7 +76,7 @@ If Err.Number <> 0 Then
 End If
 On Error GoTo 0
 
-' -- 항상 200으로 응답, 실제 상태는 JSON에 포함 --
+' -- 항상 200으로 응답 --
 Dim actualStatus, actualBody
 actualStatus = http.Status
 actualBody = http.ResponseText
