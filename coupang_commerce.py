@@ -267,9 +267,8 @@ def get_sales(
             "recognitionDateFrom": start_date,
             "recognitionDateTo": end_date,
             "maxPerPage": "100",
+            "token": token or "",
         }
-        if token:
-            params["token"] = token
 
         data = _coupang_request(store_key, "GET", path, params=params)
         if not data or not data.get("data"):
