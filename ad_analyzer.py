@@ -464,3 +464,150 @@ if __name__ == "__main__":
         print(f"[SAVED] C그룹 → {path} ({len(group_c)}건)")
 
     print("\n[DONE] 분석 완료!")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  10. 쿠팡 검색/비검색 분리
+# ═══════════════════════════════════════════════════════════════
+def split_search_nonsearch(df):
+    """키워드 '-' = 비검색영역, 그 외 = 검색영역"""
+    df = df.copy()
+    is_dash = df["키워드"].astype(str).str.strip().isin(["-", ""])
+    df["노출영역"] = np.where(is_dash, "비검색", "검색")
+    return df
+
+
+# ═══════════════════════════════════════════════════════════════
+#  11. 주차별 키워드 트렌드 분석
+# ═══════════════════════════════════════════════════════════════
+def weekly_keyword_trend(daily_df):
+    """쿠팡 키워드 일별 데이터 → 주차별 집계 + 검색/비검색 분리"""
+    if daily_df.empty or "날짜" not in daily_df.columns:
+        return pd.DataFrame()
+
+    df = daily_df.copy()
+    df["날짜"] = pd.to_datetime(df["날짜"], errors="coerce")
+    df = df.dropna(subset=["날짜"])
+
+    df["주차"] = df["날짜"].dt.isocalendar().week.astype(int)
+    df["연도"] = df["날짜"].dt.year
+    df["주차라벨"] = df["연도"].astype(str) + "-W" + df["주차"].astype(str).str.zfill(2)
+
+    if "키워드" in df.columns:
+        is_dash = df["키워드"].astype(str).str.strip().isin(["-", ""])
+        df["노출영역"] = np.where(is_dash, "비검색", "검색")
+    elif "광고 노출 지면" in df.columns:
+        df["노출영역"] = df["광고 노출 지면"].apply(
+            lambda x: "비검색" if "비검색" in str(x) else "검색")
+    else:
+        df["노출영역"] = "기타"
+
+    agg_map = {}
+    for col in ["노출수", "클릭수", "광고비"]:
+        if col in df.columns:
+            agg_map[col] = (col, "sum")
+
+    conv_col = next((c for c in ["총 판매수량(14일)", "총 판매수량(1일)"] if c in df.columns), None)
+    rev_col = next((c for c in ["총 전환매출액(14일)", "총 전환매출액(1일)"] if c in df.columns), None)
+    if conv_col:
+        agg_map["총전환수"] = (conv_col, "sum")
+    if rev_col:
+        agg_map["총전환매출액"] = (rev_col, "sum")
+
+    group_cols = ["주차라벨"]
+    if "캠페인명" in df.columns:
+        group_cols.append("캠페인명")
+    if "키워드" in df.columns:
+        group_cols.append("키워드")
+    group_cols.append("노출영역")
+
+    weekly = df.groupby(group_cols, as_index=False).agg(**agg_map)
+
+    if "노출수" in weekly.columns and "클릭수" in weekly.columns:
+        weekly["CTR(%)"] = _safe_div(weekly["클릭수"], weekly["노출수"]) * 100
+    if "클릭수" in weekly.columns and "광고비" in weekly.columns:
+        weekly["CPC"] = _safe_div(weekly["광고비"] * 1.1, weekly["클릭수"])
+    if "총전환매출액" in weekly.columns and "광고비" in weekly.columns:
+        weekly["ROAS(%)"] = _safe_div(weekly["총전환매출액"], weekly["광고비"] * 1.1) * 100
+    if "총전환수" in weekly.columns and "클릭수" in weekly.columns:
+        weekly["CVR(%)"] = _safe_div(weekly["총전환수"], weekly["클릭수"]) * 100
+
+    return weekly
+
+
+# ═══════════════════════════════════════════════════════════════
+#  12. 캠페인별 검색/비검색 교차 분석
+# ═══════════════════════════════════════════════════════════════
+def campaign_search_analysis(daily_df):
+    """캠페인별 검색/비검색 영역의 효율 비교"""
+    if daily_df.empty:
+        return pd.DataFrame()
+
+    df = daily_df.copy()
+    df["날짜"] = pd.to_datetime(df["날짜"], errors="coerce")
+    df = df.dropna(subset=["날짜"])
+
+    if "키워드" in df.columns:
+        is_dash = df["키워드"].astype(str).str.strip().isin(["-", ""])
+        df["노출영역"] = np.where(is_dash, "비검색", "검색")
+    elif "광고 노출 지면" in df.columns:
+        df["노출영역"] = df["광고 노출 지면"].apply(
+            lambda x: "비검색" if "비검색" in str(x) else "검색")
+    else:
+        return pd.DataFrame()
+
+    agg_map = {}
+    for col in ["노출수", "클릭수", "광고비"]:
+        if col in df.columns:
+            agg_map[col] = (col, "sum")
+
+    rev_col = next((c for c in ["총 전환매출액(14일)", "총 전환매출액(1일)"] if c in df.columns), None)
+    conv_col = next((c for c in ["총 판매수량(14일)", "총 판매수량(1일)"] if c in df.columns), None)
+    if rev_col:
+        agg_map["총전환매출액"] = (rev_col, "sum")
+    if conv_col:
+        agg_map["총전환수"] = (conv_col, "sum")
+
+    group_cols = ["노출영역"]
+    if "캠페인명" in df.columns:
+        group_cols = ["캠페인명", "노출영역"]
+
+    result = df.groupby(group_cols, as_index=False).agg(**agg_map)
+
+    if "광고비" in result.columns:
+        result["광고비(VAT)"] = result["광고비"] * 1.1
+    if "총전환매출액" in result.columns and "광고비" in result.columns:
+        result["ROAS(%)"] = _safe_div(result["총전환매출액"], result["광고비"] * 1.1) * 100
+    if "클릭수" in result.columns and "노출수" in result.columns:
+        result["CTR(%)"] = _safe_div(result["클릭수"], result["노출수"]) * 100
+    if "클릭수" in result.columns and "광고비" in result.columns:
+        result["CPC"] = _safe_div(result["광고비"] * 1.1, result["클릭수"])
+
+    return result.round(2)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  13. 주차별 키워드 분류 (검색만 A/B/C/D, 비검색은 별도)
+# ═══════════════════════════════════════════════════════════════
+def weekly_keyword_classification(daily_df, margin_rate=DEFAULT_MARGIN_RATE):
+    """주차별 집계 후 검색 키워드만 A/B/C/D 분류, 비검색은 별도 태그"""
+    weekly = weekly_keyword_trend(daily_df)
+    if weekly.empty:
+        return pd.DataFrame()
+
+    search_kw = weekly[weekly["노출영역"] == "검색"].copy()
+    nonsearch_kw = weekly[weekly["노출영역"] == "비검색"].copy()
+
+    if not search_kw.empty:
+        if "광고비" in search_kw.columns:
+            search_kw["총비용"] = search_kw["광고비"] * 1.1
+        for req in ["총전환수", "총전환매출액"]:
+            if req not in search_kw.columns:
+                search_kw[req] = 0
+        search_kw = compute_derived_metrics(search_kw, margin_rate)
+        search_kw = classify_keywords(search_kw, margin_rate)
+
+    if not nonsearch_kw.empty:
+        nonsearch_kw["Action_Group"] = "비검색영역"
+
+    return pd.concat([search_kw, nonsearch_kw], ignore_index=True)

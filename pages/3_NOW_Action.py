@@ -477,12 +477,121 @@ with main_col:
                            delta="흑자" if margin_profit > 0 else "적자")
                 st.markdown("")
 
-            # 키워드 그룹 분석
-            if not kw_coupang.empty:
-                S.slide_header("쿠팡 키워드 분석", "Coupang Keyword Analysis")
-                _render_keyword_analysis(kw_coupang, "cpg", margin_rate, min_clicks_stat)
+            # ══════════════════════════════════════════════════
+            #  NEW: 검색/비검색 영역 분리 분석
+            # ══════════════════════════════════════════════════
+            if not df_ckw.empty:
+                S.slide_header("검색 vs 비검색 영역 분석", "Search vs Non-Search Area")
+                st.caption("쿠팡은 AI가 비검색 영역(키워드 '-')에 자동 노출합니다. 영역별 효율을 분리하여 광고 밸런스를 맞추세요.")
 
-            # 캠페인 성과
+                cpg_area = aa.campaign_search_analysis(df_ckw)
+                if not cpg_area.empty:
+                    # 전체 검색/비검색 요약
+                    area_total = cpg_area.groupby("노출영역", as_index=False).agg(
+                        노출수=("노출수", "sum") if "노출수" in cpg_area.columns else ("노출영역", "count"),
+                        클릭수=("클릭수", "sum") if "클릭수" in cpg_area.columns else ("노출영역", "count"),
+                        광고비=("광고비", "sum") if "광고비" in cpg_area.columns else ("노출영역", "count"),
+                        총전환매출액=("총전환매출액", "sum") if "총전환매출액" in cpg_area.columns else ("노출영역", "count"),
+                    )
+                    for _, row in area_total.iterrows():
+                        ad_cost_vat = row.get("광고비", 0) * 1.1
+                        rev = row.get("총전환매출액", 0)
+                        roas = (rev / ad_cost_vat * 100) if ad_cost_vat > 0 else 0
+                        ctr = (row.get("클릭수", 0) / row.get("노출수", 1) * 100) if row.get("노출수", 0) > 0 else 0
+                        label = row["노출영역"]
+                        color = "#3B82F6" if label == "검색" else "#F59E0B"
+                        ac1, ac2, ac3, ac4 = st.columns(4)
+                        ac1.metric(f"{label} 노출수", f"{row.get('노출수', 0):,.0f}")
+                        ac2.metric(f"{label} 광고비(VAT)", f"{ad_cost_vat:,.0f}")
+                        ac3.metric(f"{label} ROAS", f"{roas:.0f}%")
+                        ac4.metric(f"{label} CTR", f"{ctr:.2f}%")
+
+                    # 캠페인별 교차 분석
+                    if "캠페인명" in cpg_area.columns:
+                        st.markdown("#### 캠페인별 검색/비검색 효율 비교")
+                        st.caption("비검색 ROAS가 낮으면 → 목표 ROAS 설정 상향으로 검색 노출 비중을 높이세요")
+                        pivot_cols = ["캠페인명", "노출영역"]
+                        disp_cols = pivot_cols + [c for c in ["노출수", "클릭수", "광고비(VAT)", "총전환매출액", "ROAS(%)", "CTR(%)", "CPC"] if c in cpg_area.columns]
+                        st.dataframe(
+                            cpg_area[[c for c in disp_cols if c in cpg_area.columns]].sort_values(
+                                ["캠페인명", "노출영역"]),
+                            use_container_width=True, hide_index=True,
+                        )
+
+                        # 시각화: 캠페인별 검색 vs 비검색 ROAS
+                        if "ROAS(%)" in cpg_area.columns:
+                            fig_area = px.bar(
+                                cpg_area, x="캠페인명", y="ROAS(%)", color="노출영역",
+                                barmode="group", title="캠페인별 검색/비검색 ROAS 비교",
+                                color_discrete_map={"검색": "#3B82F6", "비검색": "#F59E0B"},
+                            )
+                            fig_area.add_hline(y=(1/margin_rate)*100, line_dash="dash",
+                                              line_color="#EF4444", annotation_text="손익분기 ROAS")
+                            fig_area.update_layout(height=400, template=TPL)
+                            st.plotly_chart(fig_area, use_container_width=True, key="p3_cpg_area_roas")
+
+            # ══════════════════════════════════════════════════
+            #  NEW: 주차별 키워드 트렌드
+            # ══════════════════════════════════════════════════
+            if not df_ckw.empty:
+                st.markdown("")
+                S.slide_header("주차별 키워드 트렌드", "Weekly Keyword Trend")
+                st.caption("일자별이 아닌 주차별로 집계하여 안정적인 트렌드를 파악합니다. 검색 키워드만 A/B/C/D 분류합니다.")
+
+                weekly_cls = aa.weekly_keyword_classification(df_ckw, margin_rate=margin_rate)
+                if not weekly_cls.empty:
+                    # 주차별 검색/비검색 ROAS 추이
+                    weekly_area = weekly_cls.groupby(["주차라벨", "노출영역"], as_index=False).agg(
+                        광고비=("광고비", "sum") if "광고비" in weekly_cls.columns else ("노출영역", "count"),
+                        총전환매출액=("총전환매출액", "sum") if "총전환매출액" in weekly_cls.columns else ("노출영역", "count"),
+                        클릭수=("클릭수", "sum") if "클릭수" in weekly_cls.columns else ("노출영역", "count"),
+                    )
+                    if "광고비" in weekly_area.columns and "총전환매출액" in weekly_area.columns:
+                        weekly_area["ROAS(%)"] = np.where(
+                            weekly_area["광고비"] > 0,
+                            weekly_area["총전환매출액"] / (weekly_area["광고비"] * 1.1) * 100, 0)
+                        fig_wk = px.line(weekly_area, x="주차라벨", y="ROAS(%)",
+                                        color="노출영역", markers=True,
+                                        title="주차별 검색/비검색 ROAS 추이",
+                                        color_discrete_map={"검색": "#3B82F6", "비검색": "#F59E0B"})
+                        fig_wk.add_hline(y=(1/margin_rate)*100, line_dash="dash",
+                                        line_color="#EF4444", annotation_text="손익분기")
+                        fig_wk.update_layout(height=350, template=TPL)
+                        st.plotly_chart(fig_wk, use_container_width=True, key="p3_cpg_weekly_roas")
+
+                    # 검색 키워드 주차별 분류 결과
+                    search_weekly = weekly_cls[weekly_cls["노출영역"] == "검색"]
+                    if not search_weekly.empty and "Action_Group" in search_weekly.columns:
+                        st.markdown("#### 검색 키워드 주차별 등급 분포")
+                        grp_weekly = search_weekly.groupby(["주차라벨", "Action_Group"]).size().reset_index(name="키워드수")
+                        fig_grp = px.bar(grp_weekly, x="주차라벨", y="키워드수",
+                                        color="Action_Group", barmode="stack",
+                                        title="주차별 키워드 등급 분포",
+                                        color_discrete_map={
+                                            "A그룹_예산및입찰가증액": "#28a745",
+                                            "B그룹_입찰가강력상승": "#ffc107",
+                                            "C그룹_즉시제외키워드": "#dc3545",
+                                            "D그룹_판단유보": "#6c757d",
+                                        })
+                        fig_grp.update_layout(height=350, template=TPL)
+                        st.plotly_chart(fig_grp, use_container_width=True, key="p3_cpg_weekly_grp")
+
+                        # 최신 주차 키워드 분류 테이블
+                        latest_week = search_weekly["주차라벨"].max()
+                        latest_kw = search_weekly[search_weekly["주차라벨"] == latest_week].copy()
+                        if not latest_kw.empty:
+                            st.markdown(f"#### 최신 주차 ({latest_week}) 검색 키워드 분류")
+                            show_cols = [c for c in ["키워드", "캠페인명", "노출수", "클릭수",
+                                                     "CTR(%)", "ROAS(%)", "CPC", "Action_Group"]
+                                        if c in latest_kw.columns]
+                            st.dataframe(
+                                latest_kw[show_cols].sort_values("Action_Group"),
+                                use_container_width=True, hide_index=True, height=400,
+                            )
+
+            # ══════════════════════════════════════════════════
+            #  기존: 캠페인 성과
+            # ══════════════════════════════════════════════════
             if not df_cpg.empty:
                 st.markdown("")
                 S.slide_header("쿠팡 캠페인 성과", "Coupang Campaign Performance")
