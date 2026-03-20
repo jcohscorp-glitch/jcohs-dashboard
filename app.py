@@ -203,8 +203,9 @@ with col_k:
     st.markdown("")
     st.markdown(S.kpi_card("목표까지 남은 금액", fmt(gap, "") if gap > 0 else "달성!", border_color="#EF4444" if gap > 0 else "#22C55E"), unsafe_allow_html=True)
     st.markdown("")
+    _delta_txt = "달성 가능" if projected_month >= TARGET else f"{fmt(TARGET - projected_month, '')} 부족"
     st.markdown(S.kpi_card("월말 예상 매출", fmt(projected_month, ""),
-                           delta=f"{'달성 가능' if projected_month >= TARGET else f'{fmt(TARGET - projected_month, \"\")} 부족'}",
+                           delta=_delta_txt,
                            delta_up=projected_month >= TARGET,
                            border_color="#8B5CF6"), unsafe_allow_html=True)
 
