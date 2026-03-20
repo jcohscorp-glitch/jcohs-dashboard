@@ -16,6 +16,7 @@ import data_loader as dl
 import predictor as pred
 import styles as S
 import ai_chat as chat
+import naver_datalab as ndl
 
 st.set_page_config(page_title="미래 예측", page_icon="🔮", layout="wide")
 S.inject_css()
@@ -136,7 +137,151 @@ main_col, ai_col = chat.setup_layout("p2")
 #  탭 구성 (모든 컨텐츠를 main_col 안에 배치)
 # ═══════════════════════════════════════════════════════════════
 with main_col:
-    tab1, tab2, tab3 = st.tabs(["📈 월말 예측", "🏢 채널 기여도 예측", "🎮 광고 예산 시뮬레이터"])
+    tab_ai, tab1, tab2, tab3 = st.tabs(["🤖 AI 트렌드 예측", "📈 월말 예측", "🏢 채널 기여도 예측", "🎮 광고 예산 시뮬레이터"])
+
+    # ═══════════════════════════════════════════════════════════════
+    #  탭 AI: 트렌드 기반 상품별 AI 분석
+    # ═══════════════════════════════════════════════════════════════
+    with tab_ai:
+        S.slide_header("AI 트렌드 예측", "Product Trend Forecast by AI")
+        st.caption("네이버 검색 트렌드 + 매출/광고 데이터를 종합하여 상품별 전략을 AI가 분석합니다.")
+
+        # ── 상위 30개 상품 추출 ─────────────────────────────────
+        now_dt = datetime.now()
+        month_start_dt = now_dt.replace(day=1)
+        df_26_ai = df_26.copy()
+        df_26_ai["일자"] = df_26_ai["주문일시"].dt.date
+        df_month = df_26_ai[df_26_ai["일자"] >= month_start_dt.date()]
+
+        top_products = pd.DataFrame()
+        if "상품명" in df_month.columns and not df_month.empty:
+            top_products = df_month.groupby("상품명").agg(
+                매출=("총 판매금액", "sum"),
+                수량=("수량", "sum") if "수량" in df_month.columns else ("총 판매금액", "count"),
+                주문수=("총 판매금액", "count"),
+                마진=("마진", "sum") if "마진" in df_month.columns else ("총 판매금액", "count"),
+            ).sort_values("매출", ascending=False).head(30).reset_index()
+
+        if top_products.empty:
+            st.warning("이번 달 상품 매출 데이터가 없습니다.")
+        else:
+            st.success(f"매출 상위 {len(top_products)}개 상품 분석 대상")
+
+            # ── 트렌드 분석 버튼 ───────────────────────────────
+            if st.button("🔍 AI 트렌드 분석 시작", key="btn_ai_trend", type="primary"):
+                # 1단계: 상품명에서 키워드 추출 (브랜드/제품명의 핵심 단어)
+                product_names = top_products["상품명"].tolist()
+
+                # 2단계: 네이버 트렌드 조회 (상위 5개 대표 상품)
+                trend_data_text = ""
+                top5_names = product_names[:5]
+                top5_keywords = []
+                for name in top5_names:
+                    # 상품명에서 핵심 키워드 추출 (첫 2-3단어)
+                    words = name.replace("[", " ").replace("]", " ").replace("(", " ").replace(")", " ").split()
+                    kw = " ".join(words[:3]) if len(words) >= 3 else name[:15]
+                    top5_keywords.append(kw)
+
+                with st.spinner("네이버 검색 트렌드 조회 중..."):
+                    try:
+                        kw_groups = [[kw] for kw in top5_keywords]
+                        df_trend = ndl.search_trend(
+                            keywords=kw_groups,
+                            group_names=top5_keywords,
+                            start_date=(now_dt - timedelta(days=90)).strftime("%Y-%m-%d"),
+                            end_date=now_dt.strftime("%Y-%m-%d"),
+                            time_unit="week",
+                        )
+                        if not df_trend.empty:
+                            trend_data_text = "네이버 검색 트렌드 (최근 90일, 주간):\n"
+                            for grp in df_trend["group_name"].unique():
+                                grp_data = df_trend[df_trend["group_name"] == grp].sort_values("period")
+                                if len(grp_data) >= 2:
+                                    recent = grp_data["ratio"].iloc[-1]
+                                    prev = grp_data["ratio"].iloc[-4] if len(grp_data) >= 4 else grp_data["ratio"].iloc[0]
+                                    change = ((recent - prev) / max(prev, 1)) * 100
+                                    trend_data_text += f"  - {grp}: 최근 {recent:.0f} (4주전 대비 {change:+.0f}%)\n"
+
+                            # 트렌드 차트
+                            fig_trend = px.line(df_trend, x="period", y="ratio",
+                                              color="group_name",
+                                              title="상위 5개 상품 검색 트렌드 (90일)",
+                                              color_discrete_sequence=S.PALETTE)
+                            fig_trend.update_layout(height=350, template=S.TPL)
+                            st.plotly_chart(fig_trend, use_container_width=True)
+                        else:
+                            trend_data_text = "네이버 검색 트렌드: 데이터 조회 실패\n"
+                    except Exception as e:
+                        trend_data_text = f"네이버 검색 트렌드: 조회 오류 ({e})\n"
+
+                # 3단계: 상품 매출 데이터 요약
+                product_summary = "이번 달 상위 30개 상품 매출 데이터:\n"
+                product_summary += "순위 | 상품명 | 매출 | 수량 | 주문수 | 마진\n"
+                for i, row in top_products.iterrows():
+                    margin_val = row.get("마진", 0)
+                    product_summary += (
+                        f"{i+1}. {row['상품명'][:40]} | "
+                        f"매출: {row['매출']:,.0f}원 | "
+                        f"수량: {row.get('수량', 0):,.0f} | "
+                        f"주문: {row['주문수']:,.0f} | "
+                        f"마진: {margin_val:,.0f}원\n"
+                    )
+
+                # 4단계: Gemini AI 분석
+                with st.spinner("AI가 상품별 트렌드 전략을 분석 중..."):
+                    try:
+                        import google.generativeai as genai
+                        genai.configure(api_key=config.GEMINI_API_KEY)
+                        model = genai.GenerativeModel(
+                            model_name="gemini-2.5-flash",
+                            system_instruction="당신은 이커머스 전문 데이터 분석가입니다. 한국어로 답변합니다.",
+                        )
+
+                        today_str = now_dt.strftime("%Y년 %m월 %d일")
+                        prompt = f"""오늘은 {today_str}입니다.
+
+아래는 우리 회사의 이번 달 매출 상위 30개 상품 데이터와 네이버 검색 트렌드입니다.
+
+{product_summary}
+
+{trend_data_text}
+
+위 데이터를 종합 분석하여 다음을 작성해 주세요:
+
+## 1. 다음 주 트렌드 전망
+- 전체 시장 트렌드가 어떤 방향인지
+- 계절/이벤트 요인 (다음 주~다음 달 특이사항)
+
+## 2. 상품별 전략 (상위 30개 각각)
+각 상품에 대해 아래 형식으로 작성:
+- **상품명**: (간략히)
+- **트렌드**: 상승/유지/하락
+- **예상 매출 변동**: 다음 주 예상 (증가/유지/감소, 근거)
+- **추천 액션**: 구체적 실행 사항 (광고 확대/축소, 가격 조정, 프로모션 등)
+
+## 3. 핵심 액션 TOP 5
+가장 우선적으로 실행해야 할 5가지 액션을 우선순위별로 정리
+
+마크다운 형식으로 깔끔하게 작성해 주세요."""
+
+                        response = model.generate_content(prompt)
+                        ai_result = response.text
+
+                        st.markdown("---")
+                        st.markdown("### 🤖 AI 분석 결과")
+                        st.markdown(ai_result)
+
+                    except Exception as e:
+                        st.error(f"AI 분석 오류: {e}")
+                        st.info("Gemini API 키를 확인해 주세요. (Settings → Secrets → GEMINI_API_KEY)")
+
+            # 상품 데이터 테이블
+            with st.expander("상위 30개 상품 매출 데이터"):
+                disp = top_products.copy()
+                disp["매출"] = disp["매출"].apply(lambda x: f"{x:,.0f}")
+                if "마진" in disp.columns:
+                    disp["마진"] = disp["마진"].apply(lambda x: f"{x:,.0f}")
+                st.dataframe(disp, use_container_width=True, hide_index=True)
 
     # ═══════════════════════════════════════════════════════════════
     #  탭 1: 월말 예측
