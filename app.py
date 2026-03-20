@@ -105,6 +105,11 @@ def fmt(v, unit="원"):
         return f"{v/1e4:.0f}만{unit}"
     return f"{v:,.0f}{unit}"
 
+def fmtv(v):
+    """단위 없는 숫자 포맷"""
+    _no_unit = ""
+    return fmt(v, _no_unit)
+
 def pct_change(cur, prev):
     if prev == 0:
         return 0, "N/A"
@@ -199,12 +204,12 @@ col_g, col_k = st.columns([3, 2])
 with col_g:
     st.plotly_chart(fig_gauge, use_container_width=True)
 with col_k:
-    st.markdown(S.kpi_card("현재 누적 매출", fmt(sales_this_month, ""), border_color="#3B82F6"), unsafe_allow_html=True)
+    st.markdown(S.kpi_card("현재 누적 매출", fmtv(sales_this_month), border_color="#3B82F6"), unsafe_allow_html=True)
     st.markdown("")
-    st.markdown(S.kpi_card("목표까지 남은 금액", fmt(gap, "") if gap > 0 else "달성!", border_color="#EF4444" if gap > 0 else "#22C55E"), unsafe_allow_html=True)
+    st.markdown(S.kpi_card("목표까지 남은 금액", fmtv(gap) if gap > 0 else "달성!", border_color="#EF4444" if gap > 0 else "#22C55E"), unsafe_allow_html=True)
     st.markdown("")
-    _delta_txt = "달성 가능" if projected_month >= TARGET else f"{fmt(TARGET - projected_month, '')} 부족"
-    st.markdown(S.kpi_card("월말 예상 매출", fmt(projected_month, ""),
+    _delta_txt = "달성 가능" if projected_month >= TARGET else f"{fmtv(TARGET - projected_month)} 부족"
+    st.markdown(S.kpi_card("월말 예상 매출", fmtv(projected_month),
                            delta=_delta_txt,
                            delta_up=projected_month >= TARGET,
                            border_color="#8B5CF6"), unsafe_allow_html=True)
@@ -212,10 +217,10 @@ with col_k:
 remaining_days = days_in_month - elapsed_days
 needed_daily = gap / max(remaining_days, 1) if gap > 0 else 0
 if projected_month >= TARGET:
-    _op = f"현재 일평균 매출 <b>{fmt(daily_avg, '')}</b>을 유지하면 월말 <b>{fmt(projected_month, '')}</b> 달성이 가능합니다. 남은 {remaining_days}일간 안정적 운영이 핵심입니다. 보수적 예측(10% 하락 감안)은 약 <b>{fmt(projected_month * 0.9, '')}</b> 수준입니다."
+    _op = f"현재 일평균 매출 <b>{fmtv(daily_avg)}</b>을 유지하면 월말 <b>{fmtv(projected_month)}</b> 달성이 가능합니다. 남은 {remaining_days}일간 안정적 운영이 핵심입니다. 보수적 예측(10% 하락 감안)은 약 <b>{fmtv(projected_month * 0.9)}</b> 수준입니다."
 else:
     pct_up = ((needed_daily / max(daily_avg, 1) - 1) * 100)
-    _op = f"목표 달성을 위해 남은 {remaining_days}일간 <b>일평균 {fmt(needed_daily, '')}</b>이 필요합니다. 현재 일평균 대비 <b>{pct_up:+.0f}%</b> 증가가 필요하며, 광고 예산 증액 또는 프로모션 집행을 권고합니다."
+    _op = f"목표 달성을 위해 남은 {remaining_days}일간 <b>일평균 {fmtv(needed_daily)}</b>이 필요합니다. 현재 일평균 대비 <b>{pct_up:+.0f}%</b> 증가가 필요하며, 광고 예산 증액 또는 프로모션 집행을 권고합니다."
 st.markdown(ai_box(_op), unsafe_allow_html=True)
 
 st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
@@ -228,14 +233,14 @@ S.slide_header("어제 영업 현황", f"Daily Report — {yesterday.strftime('%
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(S.kpi_card("어제 매출", fmt(sales_yesterday, ""), border_color="#3B82F6"), unsafe_allow_html=True)
+    st.markdown(S.kpi_card("어제 매출", fmtv(sales_yesterday), border_color="#3B82F6"), unsafe_allow_html=True)
 with c2:
     st.markdown(S.kpi_card("주문 건수", f"{orders_yesterday:,}건", border_color="#8B5CF6"), unsafe_allow_html=True)
 with c3:
-    st.markdown(S.kpi_card("평균 객단가", fmt(avg_order_yesterday, ""), border_color="#06B6D4"), unsafe_allow_html=True)
+    st.markdown(S.kpi_card("평균 객단가", fmtv(avg_order_yesterday), border_color="#06B6D4"), unsafe_allow_html=True)
 with c4:
     mr_y = (margin_yesterday / sales_yesterday * 100) if sales_yesterday > 0 else 0
-    st.markdown(S.kpi_card("마진율", f"{mr_y:.1f}%", delta=fmt(margin_yesterday, ""),
+    st.markdown(S.kpi_card("마진율", f"{mr_y:.1f}%", delta=fmtv(margin_yesterday),
                            delta_up=mr_y > 20, border_color="#22C55E"), unsafe_allow_html=True)
 
 if "채널" in df_today.columns and not df_today.empty:
@@ -248,12 +253,12 @@ if "채널" in df_today.columns and not df_today.empty:
         st.plotly_chart(fig_ch, use_container_width=True)
 
 if daily_avg > 0 and sales_yesterday > 0:
-    _op = f"어제 매출 <b>{fmt(sales_yesterday, '')}</b>은 월 일평균 <b>{fmt(daily_avg, '')}</b> 대비 <b>{((sales_yesterday/daily_avg-1)*100):+.0f}%</b>입니다. "
+    _op = f"어제 매출 <b>{fmtv(sales_yesterday)}</b>은 월 일평균 <b>{fmtv(daily_avg)}</b> 대비 <b>{((sales_yesterday/daily_avg-1)*100):+.0f}%</b>입니다. "
     _op += "양호한 수준입니다." if sales_yesterday >= daily_avg else "주력 채널의 광고 노출/재고 상황을 점검해 보세요."
 elif sales_yesterday == 0:
     _op = "어제 매출 데이터가 아직 집계되지 않았습니다."
 else:
-    _op = f"어제 매출 <b>{fmt(sales_yesterday, '')}</b>을 기록했습니다."
+    _op = f"어제 매출 <b>{fmtv(sales_yesterday)}</b>을 기록했습니다."
 st.markdown(ai_box(_op), unsafe_allow_html=True)
 
 st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
@@ -266,9 +271,9 @@ S.slide_header("주간 현황", f"Weekly — {week_start.strftime('%m/%d')}~{tod
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(S.kpi_card("금주 매출", fmt(sales_this_week, ""), border_color="#3B82F6"), unsafe_allow_html=True)
+    st.markdown(S.kpi_card("금주 매출", fmtv(sales_this_week), border_color="#3B82F6"), unsafe_allow_html=True)
 with c2:
-    st.markdown(S.kpi_card("전주 매출", fmt(sales_last_week, ""), border_color="#94A3B8"), unsafe_allow_html=True)
+    st.markdown(S.kpi_card("전주 매출", fmtv(sales_last_week), border_color="#94A3B8"), unsafe_allow_html=True)
 with c3:
     st.markdown(S.kpi_card("전주 대비", week_change_str, delta_up=week_change >= 0, border_color="#F59E0B"), unsafe_allow_html=True)
 with c4:
@@ -281,7 +286,7 @@ if not recent_14.empty:
     fig_d = px.bar(daily_sales, x="날짜", y="매출", color_discrete_sequence=["#3B82F6"],
                    title="최근 14일 일별 매출 추이")
     fig_d.add_hline(y=daily_avg, line_dash="dash", line_color="#EF4444",
-                    annotation_text=f"월 일평균 {fmt(daily_avg, '')}")
+                    annotation_text=f"월 일평균 {fmtv(daily_avg)}")
     fig_d.update_layout(height=320, template=TPL)
     fig_d.update_yaxes(tickformat=",")
     st.plotly_chart(fig_d, use_container_width=True)
@@ -306,13 +311,13 @@ S.slide_header("월간 매출 & 이익 현황", f"Monthly P&L — {now.strftime(
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(S.kpi_card("월 누적 매출", fmt(sales_this_month, ""), border_color="#3B82F6"), unsafe_allow_html=True)
+    st.markdown(S.kpi_card("월 누적 매출", fmtv(sales_this_month), border_color="#3B82F6"), unsafe_allow_html=True)
 with c2:
-    st.markdown(S.kpi_card("월 누적 마진", fmt(margin_this_month, ""), border_color="#22C55E"), unsafe_allow_html=True)
+    st.markdown(S.kpi_card("월 누적 마진", fmtv(margin_this_month), border_color="#22C55E"), unsafe_allow_html=True)
 with c3:
     st.markdown(S.kpi_card("마진율", f"{margin_rate:.1f}%", border_color="#F59E0B"), unsafe_allow_html=True)
 with c4:
-    st.markdown(S.kpi_card("전월 매출", fmt(sales_last_month_full, ""), border_color="#94A3B8"), unsafe_allow_html=True)
+    st.markdown(S.kpi_card("전월 매출", fmtv(sales_last_month_full), border_color="#94A3B8"), unsafe_allow_html=True)
 
 monthly_sales = df_26.groupby(df_26["주문일시"].dt.to_period("M")).agg(
     매출=("총 판매금액", "sum"),
@@ -411,9 +416,9 @@ if ad_summary:
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(S.kpi_card("총 광고비", fmt(total_ad_cost, ""), border_color="#EF4444"), unsafe_allow_html=True)
+        st.markdown(S.kpi_card("총 광고비", fmtv(total_ad_cost), border_color="#EF4444"), unsafe_allow_html=True)
     with c2:
-        st.markdown(S.kpi_card("광고 전환매출", fmt(total_ad_rev, ""), border_color="#3B82F6"), unsafe_allow_html=True)
+        st.markdown(S.kpi_card("광고 전환매출", fmtv(total_ad_rev), border_color="#3B82F6"), unsafe_allow_html=True)
     with c3:
         rc = "#22C55E" if total_roas >= 300 else "#F59E0B" if total_roas >= 200 else "#EF4444"
         st.markdown(S.kpi_card("종합 ROAS", f"{total_roas:.0f}%", border_color=rc), unsafe_allow_html=True)
@@ -444,7 +449,7 @@ if ad_summary:
         st.dataframe(disp, use_container_width=True, hide_index=True)
 
     best_ch = df_ad.loc[df_ad["ROAS"].idxmax(), "채널"] if df_ad["ROAS"].max() > 0 else "N/A"
-    _parts = [f"이번 달 총 광고비 <b>{fmt(total_ad_cost, '')}</b>, 종합 ROAS <b>{total_roas:.0f}%</b>."]
+    _parts = [f"이번 달 총 광고비 <b>{fmtv(total_ad_cost)}</b>, 종합 ROAS <b>{total_roas:.0f}%</b>."]
     if total_roas >= 300:
         _parts.append("광고 효율 양호. 고효율 채널 예산 확대로 매출 성장을 가속화하세요.")
     elif total_roas >= 200:
@@ -535,14 +540,14 @@ st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 S.slide_header("종합 요약 & 핵심 액션", "Executive Summary")
 
 summary_lines = [
-    f"<b>[월간]</b> 현재 매출 <b>{fmt(sales_this_month, '')}</b>, 목표 대비 <b>{progress*100:.1f}%</b>. 월말 예상 <b>{fmt(projected_month, '')}</b>.",
+    f"<b>[월간]</b> 현재 매출 <b>{fmtv(sales_this_month)}</b>, 목표 대비 <b>{progress*100:.1f}%</b>. 월말 예상 <b>{fmtv(projected_month)}</b>.",
     f"<b>[수익성]</b> 마진율 <b>{margin_rate:.1f}%</b>" + (f", 광고비 비중 <b>{ad_ratio:.1f}%</b>." if ad_summary else "."),
     f"<b>[주간]</b> 전주 대비 <b>{week_change_str}</b>.",
 ]
 
 actions = []
 if gap > 0:
-    actions.append(f"남은 {remaining_days}일간 일평균 <b>{fmt(needed_daily, '')}</b> 필요 → 광고 예산 증액/프로모션 검토")
+    actions.append(f"남은 {remaining_days}일간 일평균 <b>{fmtv(needed_daily)}</b> 필요 → 광고 예산 증액/프로모션 검토")
 if ad_summary and total_roas < 300:
     actions.append(f"광고 ROAS <b>{total_roas:.0f}%</b> → 저효율 키워드 정리, 고효율 채널 예산 재배분")
 if margin_rate < 20:
