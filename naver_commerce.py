@@ -26,6 +26,42 @@ COMMERCE_STORES = [
 
 BASE_URL = "https://api.commerce.naver.com/external"
 
+# 프록시 설정 (닷넷피아 고정 IP 서버 경유)
+NAVER_PROXY_URL = "http://119.205.211.3/api_proxy.asp"
+PROXY_SECRET = "jcohs-coupang-proxy-2026-secret"
+USE_PROXY = True  # True: 프록시 경유 (Cloud), False: 직접 호출 (로컬)
+
+
+def _proxy_request(method, url, headers=None, body=None, content_type=None):
+    """범용 프록시 경유 HTTP 요청"""
+    proxy_headers = {
+        "X-Proxy-Auth": PROXY_SECRET,
+        "X-Target-Method": method,
+        "X-Target-Url": url,
+        "Host": "www.jcohsadmin.com",
+        "User-Agent": "JCOHS-Dashboard/1.0",
+    }
+    if content_type:
+        proxy_headers["X-Target-Content-Type"] = content_type
+
+    # 추가 헤더를 파이프 구분 형식으로 전달
+    if headers:
+        hdr_pairs = []
+        for k, v in headers.items():
+            if k.lower() not in ("content-type",):
+                hdr_pairs.append(f"{k}:{v}")
+        if hdr_pairs:
+            proxy_headers["X-Target-Headers"] = "|".join(hdr_pairs)
+
+    if body:
+        proxy_headers["Content-Type"] = content_type or "application/json;charset=UTF-8"
+        return requests.post(NAVER_PROXY_URL, headers=proxy_headers,
+                             data=body.encode("utf-8"), timeout=30,
+                             allow_redirects=False)
+    else:
+        return requests.post(NAVER_PROXY_URL, headers=proxy_headers,
+                             timeout=30, allow_redirects=False)
+
 
 @st.cache_data(ttl=600)
 def get_server_ip() -> str:
@@ -76,11 +112,18 @@ def _get_token(app_id: str, app_secret: str) -> str | None:
             "type": "SELF",
         }
         query = urllib.parse.urlencode(data_)
-        resp = requests.post(
-            f"{BASE_URL}/v1/oauth2/token?{query}",
-            headers={"content-type": "application/x-www-form-urlencoded"},
-            timeout=10,
-        )
+        if USE_PROXY:
+            resp = _proxy_request(
+                "POST",
+                f"{BASE_URL}/v1/oauth2/token?{query}",
+                content_type="application/x-www-form-urlencoded",
+            )
+        else:
+            resp = requests.post(
+                f"{BASE_URL}/v1/oauth2/token?{query}",
+                headers={"content-type": "application/x-www-form-urlencoded"},
+                timeout=10,
+            )
         if resp.status_code == 403:
             return None  # IP 차단 — 호출부에서 일괄 안내
         resp.raise_for_status()
@@ -181,10 +224,13 @@ def get_orders(store_key: str,
                 if more_sequence:
                     params["moreSequence"] = more_sequence
 
-                resp = requests.get(
-                    f"{BASE_URL}/v1/pay-order/seller/product-orders/last-changed-statuses",
-                    headers=headers, params=params, timeout=15,
-                )
+                url = f"{BASE_URL}/v1/pay-order/seller/product-orders/last-changed-statuses"
+                qs = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
+                full_url = f"{url}?{qs}"
+                if USE_PROXY:
+                    resp = _proxy_request("GET", full_url, headers=headers)
+                else:
+                    resp = requests.get(url, headers=headers, params=params, timeout=15)
                 if resp.status_code != 200:
                     break
 
@@ -199,12 +245,22 @@ def get_orders(store_key: str,
                     break
 
                 # 상세 조회
-                detail_resp = requests.post(
-                    f"{BASE_URL}/v1/pay-order/seller/product-orders/query",
-                    headers=headers,
-                    json={"productOrderIds": product_order_ids},
-                    timeout=15,
-                )
+                if USE_PROXY:
+                    import json as _json
+                    detail_resp = _proxy_request(
+                        "POST",
+                        f"{BASE_URL}/v1/pay-order/seller/product-orders/query",
+                        headers=headers,
+                        body=_json.dumps({"productOrderIds": product_order_ids}),
+                        content_type="application/json",
+                    )
+                else:
+                    detail_resp = requests.post(
+                        f"{BASE_URL}/v1/pay-order/seller/product-orders/query",
+                        headers=headers,
+                        json={"productOrderIds": product_order_ids},
+                        timeout=15,
+                    )
                 if detail_resp.status_code == 200:
                     detail_data = detail_resp.json()
                     for order in detail_data.get("data", []):
@@ -255,12 +311,22 @@ def get_products(store_key: str) -> pd.DataFrame:
 
     try:
         for _ in range(20):  # 최대 20페이지
-            resp = requests.post(
-                f"{BASE_URL}/v1/products/search",
-                headers=headers,
-                json={"page": page, "size": 100},
-                timeout=15,
-            )
+            if USE_PROXY:
+                import json as _json
+                resp = _proxy_request(
+                    "POST",
+                    f"{BASE_URL}/v1/products/search",
+                    headers=headers,
+                    body=_json.dumps({"page": page, "size": 100}),
+                    content_type="application/json",
+                )
+            else:
+                resp = requests.post(
+                    f"{BASE_URL}/v1/products/search",
+                    headers=headers,
+                    json={"page": page, "size": 100},
+                    timeout=15,
+                )
             resp.raise_for_status()
             data = resp.json()
 
