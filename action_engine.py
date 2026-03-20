@@ -49,22 +49,43 @@ def analyze_campaign_actions(df_keywords, campaign_col="캠페인", margin_rate=
 
     # 캠페인별 집계
     for camp_name, camp_df in df_keywords.groupby(campaign_col):
+        camp_df = camp_df.copy()
+
+        # ── 비검색영역('-') 분리 ──
+        has_kw = "키워드" in camp_df.columns
+        is_nonsearch = camp_df["키워드"].astype(str).str.strip().isin(["-", ""]) if has_kw else pd.Series(False, index=camp_df.index)
+        df_search = camp_df[~is_nonsearch]
+        df_nonsearch = camp_df[is_nonsearch]
+
         # 컬럼명 유연 대응
         cost_col = next((c for c in ["총비용", "광고비(VAT포함)", "광고비", "광고비(VAT)"] if c in camp_df.columns), None)
-        rev_col = next((c for c in ["전환매출", "전환매출액", "총 전환매출액(14일)", "총 전환매출액(1일)"] if c in camp_df.columns), None)
+        rev_col = next((c for c in ["전환매출", "전환매출액", "총 전환매출액(14일)", "총 전환매출액(1일)", "총전환매출액"] if c in camp_df.columns), None)
         click_col = next((c for c in ["클릭수"] if c in camp_df.columns), None)
         imp_col = next((c for c in ["노출수"] if c in camp_df.columns), None)
 
+        # 전체 / 검색 / 비검색 각각 KPI
+        total_cost = camp_df[cost_col].sum() if cost_col else 0
+        total_rev = camp_df[rev_col].sum() if rev_col else 0
+        search_cost = df_search[cost_col].sum() if cost_col and not df_search.empty else 0
+        search_rev = df_search[rev_col].sum() if rev_col and not df_search.empty else 0
+        nonsearch_cost = df_nonsearch[cost_col].sum() if cost_col and not df_nonsearch.empty else 0
+        nonsearch_rev = df_nonsearch[rev_col].sum() if rev_col and not df_nonsearch.empty else 0
+        search_roas = (search_rev / search_cost * 100) if search_cost > 0 else 0
+        nonsearch_roas = (nonsearch_rev / nonsearch_cost * 100) if nonsearch_cost > 0 else 0
+
         camp_action = {
             "campaign": camp_name,
-            "keywords_total": len(camp_df),
-            "cost": camp_df[cost_col].sum() if cost_col else 0,
-            "revenue": camp_df[rev_col].sum() if rev_col else 0,
+            "keywords_total": len(df_search),
+            "nonsearch_count": len(df_nonsearch),
+            "cost": total_cost,
+            "revenue": total_rev,
             "clicks": camp_df[click_col].sum() if click_col else 0,
             "impressions": camp_df[imp_col].sum() if imp_col else 0,
+            "search_cost": search_cost, "search_rev": search_rev, "search_roas": search_roas,
+            "nonsearch_cost": nonsearch_cost, "nonsearch_rev": nonsearch_rev, "nonsearch_roas": nonsearch_roas,
             "actions": [],
-            "priority_score": 0,  # 높을수록 급함
-            "verdict": "",  # 종합 판정
+            "priority_score": 0,
+            "verdict": "",
         }
 
         cost = camp_action["cost"]
@@ -74,21 +95,21 @@ def analyze_campaign_actions(df_keywords, campaign_col="캠페인", margin_rate=
         camp_action["roas"] = roas
         camp_action["profit"] = profit
 
-        # ── 키워드 그룹별 분류 ──
-        # Action_Group 값: "A", "B", "C", "D" 또는 "A그룹_xxx", "B그룹_xxx" 등
+        # ── 키워드 그룹별 분류 (검색 키워드만!) ──
         grp_a = pd.DataFrame()
         grp_b = pd.DataFrame()
         grp_c = pd.DataFrame()
         n_a = n_b = n_c = n_d = 0
-        if "Action_Group" in camp_df.columns:
-            camp_df["_grp_letter"] = camp_df["Action_Group"].astype(str).str[0].str.upper()
-            n_a = (camp_df["_grp_letter"] == "A").sum()
-            n_b = (camp_df["_grp_letter"] == "B").sum()
-            n_c = (camp_df["_grp_letter"] == "C").sum()
-            n_d = (camp_df["_grp_letter"] == "D").sum()
-            grp_a = camp_df[camp_df["_grp_letter"] == "A"]
-            grp_b = camp_df[camp_df["_grp_letter"] == "B"]
-            grp_c = camp_df[camp_df["_grp_letter"] == "C"]
+        if "Action_Group" in df_search.columns and not df_search.empty:
+            df_search = df_search.copy()
+            df_search["_grp_letter"] = df_search["Action_Group"].astype(str).str[0].str.upper()
+            n_a = (df_search["_grp_letter"] == "A").sum()
+            n_b = (df_search["_grp_letter"] == "B").sum()
+            n_c = (df_search["_grp_letter"] == "C").sum()
+            n_d = (df_search["_grp_letter"] == "D").sum()
+            grp_a = df_search[df_search["_grp_letter"] == "A"]
+            grp_b = df_search[df_search["_grp_letter"] == "B"]
+            grp_c = df_search[df_search["_grp_letter"] == "C"]
 
         camp_action["group_counts"] = {"A": n_a, "B": n_b, "C": n_c, "D": n_d}
 
@@ -187,7 +208,41 @@ def analyze_campaign_actions(df_keywords, campaign_col="캠페인", margin_rate=
                     "urgency": "medium",
                 })
 
-        # ── 액션 6: 키워드 전부 D그룹(데이터부족) ──
+        # ── 액션 6: 비검색영역 효율 판정 ──
+        if len(df_nonsearch) > 0 and nonsearch_cost > 0:
+            bep_roas = (1 / margin_rate) * 100 if margin_rate > 0 else 333
+            if nonsearch_roas >= bep_roas:
+                camp_action["actions"].append({
+                    "type": "nonsearch_good",
+                    "icon": "🟢",
+                    "label": f"비검색영역 효율 양호 (ROAS {nonsearch_roas:.0f}%)",
+                    "detail": f"비검색 광고비 {fmt_money(nonsearch_cost)}, 전환매출 {fmt_money(nonsearch_rev)}. "
+                              f"현재 목표ROAS 유지 또는 소폭 하향하여 비검색 노출 확대 검토",
+                    "urgency": "low",
+                })
+            elif nonsearch_roas >= 100:
+                camp_action["actions"].append({
+                    "type": "nonsearch_mid",
+                    "icon": "🟡",
+                    "label": f"비검색영역 효율 보통 (ROAS {nonsearch_roas:.0f}%)",
+                    "detail": f"비검색 광고비 {fmt_money(nonsearch_cost)}, 전환매출 {fmt_money(nonsearch_rev)}. "
+                              f"목표ROAS를 상향 설정하여 검색영역 노출 비중을 높이세요",
+                    "urgency": "medium",
+                })
+                camp_action["priority_score"] += 10
+            else:
+                camp_action["actions"].append({
+                    "type": "nonsearch_bad",
+                    "icon": "🔴",
+                    "label": f"비검색영역 낭비 (ROAS {nonsearch_roas:.0f}%)",
+                    "detail": f"비검색 광고비 {fmt_money(nonsearch_cost)} 중 대부분 손실. "
+                              f"목표ROAS 대폭 상향(현재 대비 +50~100%)으로 비검색 노출을 억제하고 "
+                              f"검색영역에 예산을 집중하세요",
+                    "urgency": "high",
+                })
+                camp_action["priority_score"] += 25
+
+        # ── 액션 7: 키워드 전부 D그룹(데이터부족) ──
         if n_d == len(camp_df) and len(camp_df) > 0:
             camp_action["actions"].append({
                 "type": "data_insufficient",

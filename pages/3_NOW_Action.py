@@ -604,23 +604,48 @@ with main_col:
                 cpg_camp = cpg_camp.sort_values("광고비", ascending=False)
                 st.dataframe(cpg_camp, use_container_width=True, hide_index=True)
 
-            # ── 캠페인별 꼼꼼한 액션 ──
+            # ── 캠페인별 액션 플랜 (검색/비검색 분리) ──
             if not kw_coupang.empty and "캠페인명" in kw_coupang.columns:
                 st.markdown("")
                 S.slide_header("캠페인별 액션 플랜", "Campaign Action Plan")
-                st.caption("각 캠페인의 키워드 분석 결과를 기반으로 자동 생성된 구체적 액션입니다.")
+                st.caption("검색 키워드와 비검색영역('-')을 분리 분석합니다. 비검색 효율이 낮으면 목표ROAS를 상향하세요.")
                 camp_actions = ae.analyze_campaign_actions(kw_coupang, campaign_col="캠페인명", margin_rate=margin_rate)
                 for ca in camp_actions:
-                    with st.expander(f"{ca['verdict']}  **{ca['campaign']}** — ROAS {ca['roas']:.0f}% | 광고비 {ae.fmt_money(ca['cost'])} | 키워드 {ca['keywords_total']}개", expanded=(ca['priority_score'] >= 30)):
-                        # KPI 요약
+                    ns_label = f" | 비검색 ROAS {ca.get('nonsearch_roas', 0):.0f}%" if ca.get('nonsearch_count', 0) > 0 else ""
+                    with st.expander(
+                        f"{ca['verdict']}  **{ca['campaign']}** — "
+                        f"ROAS {ca['roas']:.0f}% | 광고비 {ae.fmt_money(ca['cost'])} | "
+                        f"검색KW {ca['keywords_total']}개{ns_label}",
+                        expanded=(ca['priority_score'] >= 30),
+                    ):
+                        # KPI 요약 - 전체
                         mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-                        mc1.metric("광고비", ae.fmt_money(ca['cost']))
-                        mc2.metric("전환매출", ae.fmt_money(ca['revenue']))
-                        mc3.metric("ROAS", f"{ca['roas']:.0f}%")
+                        mc1.metric("총 광고비", ae.fmt_money(ca['cost']))
+                        mc2.metric("총 전환매출", ae.fmt_money(ca['revenue']))
+                        mc3.metric("종합 ROAS", f"{ca['roas']:.0f}%")
                         mc4.metric("순이익", ae.fmt_money(ca['profit']),
                                    delta="흑자" if ca['profit'] > 0 else "적자")
                         gc = ca['group_counts']
-                        mc5.metric("키워드", f"A:{gc['A']} B:{gc['B']} C:{gc['C']} D:{gc['D']}")
+                        mc5.metric("검색KW", f"A:{gc['A']} B:{gc['B']} C:{gc['C']} D:{gc['D']}")
+
+                        # 검색/비검색 분리 KPI
+                        if ca.get('nonsearch_count', 0) > 0:
+                            st.markdown("---")
+                            st.markdown("**검색 vs 비검색 영역 비교**")
+                            sc1, sc2, sc3 = st.columns(3)
+                            with sc1:
+                                st.metric("검색 광고비", ae.fmt_money(ca.get('search_cost', 0)))
+                                st.metric("검색 ROAS", f"{ca.get('search_roas', 0):.0f}%")
+                            with sc2:
+                                st.metric("비검색 광고비", ae.fmt_money(ca.get('nonsearch_cost', 0)))
+                                st.metric("비검색 ROAS", f"{ca.get('nonsearch_roas', 0):.0f}%")
+                            with sc3:
+                                ratio = (ca.get('nonsearch_cost', 0) / ca['cost'] * 100) if ca['cost'] > 0 else 0
+                                st.metric("비검색 비중", f"{ratio:.0f}%")
+                                diff = ca.get('search_roas', 0) - ca.get('nonsearch_roas', 0)
+                                st.metric("ROAS 차이", f"{diff:+.0f}%p")
+
+                        st.markdown("---")
 
                         # 액션 리스트
                         for act in ca['actions']:
