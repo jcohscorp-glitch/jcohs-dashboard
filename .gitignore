@@ -7,3 +7,5 @@ streamlit_cloud_secrets.txt
 run_dashboard.bat
 run_dashboard_external.bat
 _patch_*.py
+paste_secrets.js
+streamlit_cloud_secrets_clean.txt
